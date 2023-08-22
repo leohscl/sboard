@@ -9,6 +9,9 @@ use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
 use ratatui::widgets::List;
 use ratatui::widgets::ListItem;
+
+use clap::{Parser, ValueEnum};
+
 use std::{
     error::Error,
     io::{self, Stdout},
@@ -16,9 +19,25 @@ use std::{
 
 use std::process::Command;
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum RunMode {
+    Slurm,
+    FromFile,
+    Ssh,
+}
+
+#[derive(Parser)]
+struct Cli {
+    #[arg(value_enum)]
+    run_mode: RunMode,
+    #[arg(long)]
+    refresh: bool,
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
+    let cli = Cli::parse();
     let mut terminal = setup_terminal()?;
-    run(&mut terminal)?;
+    run(&mut terminal, &cli)?;
     restore_terminal(&mut terminal)?;
     Ok(())
 }
@@ -38,15 +57,14 @@ fn restore_terminal(
     Ok(terminal.show_cursor()?)
 }
 
-fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<(), Box<dyn Error>> {
+fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: &Cli) -> Result<(), Box<dyn Error>> {
+    let mut current_display = run_command(cli.run_mode)?;
+    let mut refresh = cli.refresh;
     Ok(loop {
-        let output_jobs = Command::new("/bin/cat")
-            .arg("test_data/10_random_users.txt")
-            .output()
-            .expect("failed to run command");
-        let out_txt = String::from_utf8(output_jobs.stdout)
-            .expect("Unexpected error in string creation, from_utf8");
-        let jobs: Vec<_> = out_txt
+        if refresh {
+            current_display = run_command(cli.run_mode)?
+        }
+        let jobs: Vec<_> = current_display
             .trim_end_matches("\n")
             .split("\n")
             .map(|line| ListItem::new(line))
@@ -66,10 +84,28 @@ fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<(), Box<dyn 
         })?;
         if event::poll(std::time::Duration::from_millis(250))? {
             if let Event::Key(key) = event::read()? {
-                if KeyCode::Char('q') == key.code {
-                    break;
+                match key.code {
+                    KeyCode::Char('q') => break,
+                    KeyCode::Char('t') => refresh = !refresh,
+                    _ => (),
                 }
             }
         }
     })
+}
+
+fn run_command(run_mode: RunMode) -> Result<String, Box<dyn Error>> {
+    let output_jobs = match run_mode {
+        RunMode::Slurm => Command::new("squeue").arg("--me").output()?,
+        RunMode::FromFile => Command::new("/bin/cat")
+            .arg("test_data/10_random_users.txt")
+            .output()?,
+        RunMode::Ssh => Command::new("ssh")
+            .arg("maestro")
+            .arg("squeue")
+            .arg("--me")
+            .output()?,
+    };
+    let out_txt = String::from_utf8(output_jobs.stdout)?;
+    Ok(out_txt)
 }
