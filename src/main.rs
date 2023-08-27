@@ -1,3 +1,4 @@
+mod job_handler;
 use crossterm::event;
 use crossterm::event::Event;
 use crossterm::event::KeyCode;
@@ -8,7 +9,6 @@ use ratatui::widgets::block::Position;
 use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
 use ratatui::widgets::List;
-use ratatui::widgets::ListItem;
 
 use clap::{Parser, ValueEnum};
 
@@ -17,21 +17,25 @@ use std::{
     io::{self, Stdout},
 };
 
-use std::process::Command;
+use crate::job_handler::build_display;
+use crate::job_handler::run_command;
+use crate::job_handler::DisplayMode;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum RunMode {
+pub enum RunMode {
     Slurm,
     FromFile,
     Ssh,
 }
 
 #[derive(Parser)]
-struct Cli {
-    #[arg(value_enum)]
+pub struct Cli {
+    #[arg(value_enum, default_value_t = RunMode::Ssh)]
     run_mode: RunMode,
     #[arg(long)]
     refresh: bool,
+    #[arg(value_enum, default_value_t = DisplayMode::CPU)]
+    display_mode: DisplayMode,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -58,19 +62,16 @@ fn restore_terminal(
 }
 
 fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: &Cli) -> Result<(), Box<dyn Error>> {
-    let mut current_display = run_command(cli.run_mode)?;
+    let mut current_job_info = run_command(cli.run_mode)?;
+    let mut vec_line_display = build_display(&current_job_info, cli)?;
     let mut refresh = cli.refresh;
     Ok(loop {
         if refresh {
-            current_display = run_command(cli.run_mode)?
+            current_job_info = run_command(cli.run_mode)?;
+            vec_line_display = build_display(&current_job_info, cli)?;
         }
-        let jobs: Vec<_> = current_display
-            .trim_end_matches("\n")
-            .split("\n")
-            .map(|line| ListItem::new(line))
-            .collect();
         terminal.draw(|frame| {
-            let list = List::new(jobs)
+            let list = List::new(vec_line_display.clone())
                 .block(
                     Block::default()
                         .title("[q]uit [t]oggle_refresh [r]am [c]pu")
@@ -92,20 +93,4 @@ fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: &Cli) -> Result<(
             }
         }
     })
-}
-
-fn run_command(run_mode: RunMode) -> Result<String, Box<dyn Error>> {
-    let output_jobs = match run_mode {
-        RunMode::Slurm => Command::new("squeue").arg("--me").output()?,
-        RunMode::FromFile => Command::new("/bin/cat")
-            .arg("test_data/10_random_users.txt")
-            .output()?,
-        RunMode::Ssh => Command::new("ssh")
-            .arg("maestro")
-            .arg("squeue")
-            .arg("--me")
-            .output()?,
-    };
-    let out_txt = String::from_utf8(output_jobs.stdout)?;
-    Ok(out_txt)
 }
