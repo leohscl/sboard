@@ -1,7 +1,7 @@
 mod app;
-mod display;
 mod job_handler;
 mod parser;
+mod ui;
 
 use crate::app::App;
 use clap::Parser;
@@ -42,28 +42,29 @@ fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result
     execute!(terminal.backend_mut(), LeaveAlternateScreen,)?;
     Ok(terminal.show_cursor()?)
 }
+use ui::ui;
 
 fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> Result<()> {
     loop {
-        let vec_line_display = app.make_ui();
-
-        terminal.draw(|frame| {
-            let list_items = vec_line_display
-                .iter()
-                .map(|line| ListItem::new(line.clone()))
-                .collect::<Vec<_>>();
-            let list = List::new(list_items)
-                .block(
-                    Block::default()
-                        .title("[q]uit [t]oggle_refresh [l]ogs")
-                        .title_position(Position::Bottom)
-                        .borders(Borders::ALL),
-                )
-                .style(Style::default().fg(Color::White))
-                .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
-                .highlight_symbol(">>");
-            frame.render_widget(list, frame.size());
-        })?;
+        app.fetch_results();
+        terminal.draw(|frame| ui(frame, app))?;
+        // terminal.draw(|frame| {
+        //     let list_items = vec_line_display
+        //         .iter()
+        //         .map(|line| ListItem::new(line.clone()))
+        //         .collect::<Vec<_>>();
+        //     let list = List::new(list_items)
+        //         .block(
+        //             Block::default()
+        //                 .title("[q]uit [t]oggle_refresh [l]ogs")
+        //                 .title_position(Position::Bottom)
+        //                 .borders(Borders::ALL),
+        //         )
+        //         .style(Style::default().fg(Color::White))
+        //         .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
+        //         .highlight_symbol(">>");
+        //     frame.render_widget(list, frame.size());
+        // })?;
 
         if event::poll(std::time::Duration::from_millis(250))? {
             if let Event::Key(key) = event::read()? {

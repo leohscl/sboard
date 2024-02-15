@@ -1,4 +1,4 @@
-use crate::display::DisplayMode;
+use crate::job_handler::DisplayMode;
 use clap::{Parser, ValueEnum};
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum RunMode {
@@ -6,7 +6,6 @@ pub enum RunMode {
     FromFile,
     Ssh,
 }
-
 #[derive(Parser)]
 pub struct Cli {
     #[arg(value_enum, default_value_t = RunMode::Ssh)]
