@@ -22,9 +22,7 @@ use std::{
 };
 
 use crate::app::App;
-use crate::display::build_display;
 use crate::display::DisplayMode;
-use crate::job_handler::run_command;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum RunMode {
