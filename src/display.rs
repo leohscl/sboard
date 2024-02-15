@@ -1,11 +1,8 @@
 use clap::ValueEnum;
+use color_eyre::eyre::Result;
 use std::collections::HashMap;
-use std::error::Error;
 
-pub fn build_display(
-    job_raw_output: String,
-    display_mode: &DisplayMode,
-) -> Result<Vec<String>, Box<dyn Error>> {
+pub fn build_display(job_raw_output: String, display_mode: &DisplayMode) -> Result<Vec<String>> {
     let line_vector: Vec<Vec<String>> = job_raw_output
         .trim_end_matches("\n")
         .split("\n")

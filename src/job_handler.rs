@@ -1,4 +1,4 @@
-use crate::RunMode;
+use crate::parser::RunMode;
 use std::error::Error;
 use std::process::Command;
 

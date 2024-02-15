@@ -5,11 +5,16 @@ use crate::Cli;
 pub struct App {
     cli: Cli,
     results: Option<Vec<String>>,
+    highlighted: Option<usize>,
 }
 
 impl App {
     pub fn new(cli: Cli) -> App {
-        App { cli, results: None }
+        App {
+            cli,
+            results: None,
+            highlighted: None,
+        }
     }
 
     pub fn get_refresh(&self) -> bool {
@@ -17,6 +22,7 @@ impl App {
     }
 
     pub fn make_ui(&mut self) -> Vec<String> {
+        // Only fetch results if needed
         if self.get_refresh() || self.results.is_none() {
             let squeue_args = vec!["--me", "--format=%all"];
             let current_job_info =
