@@ -1,4 +1,7 @@
+mod app;
+mod display;
 mod job_handler;
+
 use crossterm::event;
 use crossterm::event::Event;
 use crossterm::event::KeyCode;
@@ -9,6 +12,7 @@ use ratatui::widgets::block::Position;
 use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
 use ratatui::widgets::List;
+use ratatui::widgets::ListItem;
 
 use clap::{Parser, ValueEnum};
 
@@ -17,9 +21,10 @@ use std::{
     io::{self, Stdout},
 };
 
-use crate::job_handler::build_display;
+use crate::app::App;
+use crate::display::build_display;
+use crate::display::DisplayMode;
 use crate::job_handler::run_command;
-use crate::job_handler::DisplayMode;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum RunMode {
@@ -41,7 +46,9 @@ pub struct Cli {
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
     let mut terminal = setup_terminal()?;
-    run(&mut terminal, &cli)?;
+
+    let mut app = App::new(cli);
+    run(&mut terminal, &mut app)?;
     restore_terminal(&mut terminal)?;
     Ok(())
 }
@@ -61,20 +68,31 @@ fn restore_terminal(
     Ok(terminal.show_cursor()?)
 }
 
-fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: &Cli) -> Result<(), Box<dyn Error>> {
-    let mut current_job_info = run_command(cli.run_mode)?;
-    let mut vec_line_display = build_display(&current_job_info, cli)?;
-    let mut refresh = cli.refresh;
-    Ok(loop {
-        if refresh {
-            current_job_info = run_command(cli.run_mode)?;
-            vec_line_display = build_display(&current_job_info, cli)?;
+fn run(
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+    app: &mut App,
+) -> Result<(), Box<dyn Error>> {
+    loop {
+        let vec_line_display = app.make_ui();
+        if event::poll(std::time::Duration::from_millis(250))? {
+            if let Event::Key(key) = event::read()? {
+                match key.code {
+                    KeyCode::Char('q') => break,
+                    KeyCode::Char(c) => app.send_char(c),
+                    _ => panic!("Unhandeled command !"),
+                }
+            }
         }
         terminal.draw(|frame| {
-            let list = List::new(vec_line_display.clone())
+            let list_items = vec_line_display
+                .iter()
+                .map(|line| ListItem::new(line.clone()))
+                .collect::<Vec<_>>();
+            let list = List::new(list_items)
                 .block(
                     Block::default()
-                        .title("[q]uit [t]oggle_refresh [r]am [c]pu")
+                        // .title("[q]uit [t]oggle_refresh [r]am [c]pu")
+                        .title("[q]uit [t]oggle_refresh [l]ogs")
                         .title_position(Position::Bottom)
                         .borders(Borders::ALL),
                 )
@@ -83,14 +101,6 @@ fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: &Cli) -> Result<(
                 .highlight_symbol(">>");
             frame.render_widget(list, frame.size());
         })?;
-        if event::poll(std::time::Duration::from_millis(250))? {
-            if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Char('q') => break,
-                    KeyCode::Char('t') => refresh = !refresh,
-                    _ => (),
-                }
-            }
-        }
-    })
+    }
+    Ok(())
 }
