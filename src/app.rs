@@ -5,7 +5,7 @@ use crate::Cli;
 pub struct App {
     cli: Cli,
     pub results: Option<Vec<String>>,
-    highlighted: Option<usize>,
+    pub highlighted: Option<usize>,
 }
 
 impl App {
@@ -42,18 +42,52 @@ impl App {
             None
         } else {
             if self.highlighted.is_none() {
-                Some(0)
+                if new_results.len() >= 2 {
+                    Some(1)
+                } else {
+                    None
+                }
             } else {
                 self.highlighted
             }
         };
+        // update state
         self.highlighted = new_highlight;
+        self.results = Some(new_results);
     }
 
     pub fn send_char(&mut self, c_sent: char) {
         match c_sent {
             't' => self.cli.refresh = !self.cli.refresh,
+            'j' => self.increase_highlighted(),
+            'k' => self.decrease_highlighted(),
             _ => (),
+        }
+    }
+
+    fn decrease_highlighted(&mut self) {
+        let num_results = self.results.clone().unwrap().len();
+        if let Some(highlighted_i) = self.highlighted {
+            assert!(highlighted_i != 0 && highlighted_i < num_results);
+            let new_highlighted_i = if highlighted_i == 1 {
+                num_results - 1
+            } else {
+                highlighted_i - 1
+            };
+            self.highlighted = Some(new_highlighted_i);
+        }
+    }
+
+    fn increase_highlighted(&mut self) {
+        let num_results = self.results.clone().unwrap().len();
+        if let Some(highlighted_i) = self.highlighted {
+            assert!(highlighted_i != 0 && highlighted_i < num_results);
+            let new_highlighted_i = if highlighted_i == num_results - 1 {
+                1
+            } else {
+                highlighted_i + 1
+            };
+            self.highlighted = Some(new_highlighted_i);
         }
     }
 }

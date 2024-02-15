@@ -13,11 +13,6 @@ use crossterm::execute;
 use crossterm::terminal::*;
 use parser::Cli;
 use ratatui::prelude::*;
-use ratatui::widgets::block::Position;
-use ratatui::widgets::Block;
-use ratatui::widgets::Borders;
-use ratatui::widgets::List;
-use ratatui::widgets::ListItem;
 use std::io::{self, Stdout};
 
 fn main() -> Result<()> {
@@ -48,24 +43,6 @@ fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> Resu
     loop {
         app.fetch_results();
         terminal.draw(|frame| ui(frame, app))?;
-        // terminal.draw(|frame| {
-        //     let list_items = vec_line_display
-        //         .iter()
-        //         .map(|line| ListItem::new(line.clone()))
-        //         .collect::<Vec<_>>();
-        //     let list = List::new(list_items)
-        //         .block(
-        //             Block::default()
-        //                 .title("[q]uit [t]oggle_refresh [l]ogs")
-        //                 .title_position(Position::Bottom)
-        //                 .borders(Borders::ALL),
-        //         )
-        //         .style(Style::default().fg(Color::White))
-        //         .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
-        //         .highlight_symbol(">>");
-        //     frame.render_widget(list, frame.size());
-        // })?;
-
         if event::poll(std::time::Duration::from_millis(250))? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
