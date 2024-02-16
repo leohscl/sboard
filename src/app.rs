@@ -59,23 +59,21 @@ impl App {
         // Only fetch results if needed
         let new_results = if self.get_refresh() || self.jobs.is_none() {
             let current_job_info = run_squeue(self.cli.run_mode)?;
-            build_display(current_job_info, &self)?
+            build_display(current_job_info, self)?
         } else {
             self.get_jobs()?
         };
 
         let new_highlight = if new_results.is_empty() || self.get_refresh() {
             None
-        } else {
-            if self.highlighted.is_none() {
-                if new_results.len() >= 2 {
-                    Some(1)
-                } else {
-                    None
-                }
+        } else if self.highlighted.is_none() {
+            if new_results.len() >= 2 {
+                Some(1)
             } else {
-                self.highlighted
+                None
             }
+        } else {
+            self.highlighted
         };
         // update state
         self.highlighted = new_highlight;

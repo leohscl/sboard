@@ -37,11 +37,11 @@ pub fn build_display(job_raw_output: String, app: &App) -> Result<Vec<String>> {
     let display_mode = app.get_display();
 
     let line_vector: Vec<Vec<String>> = job_raw_output
-        .trim_end_matches("\n")
-        .split("\n")
+        .trim_end_matches('\n')
+        .split('\n')
         .enumerate()
         .map(|(index, line)| {
-            line.split("|")
+            line.split('|')
                 .map(|str| {
                     if index == 0 {
                         rename_field(str)
@@ -55,10 +55,10 @@ pub fn build_display(job_raw_output: String, app: &App) -> Result<Vec<String>> {
     let mut fields_keep = display_mode.get_fields();
     let all_fields = &line_vector[0];
     let indicies: Vec<_> = all_fields
-        .into_iter()
+        .iter()
         .enumerate()
         .filter_map(|(index, field)| {
-            if fields_keep.contains(&field) {
+            if fields_keep.contains(field) {
                 fields_keep.retain(|f| f != field);
                 Some(index)
             } else {
@@ -69,7 +69,7 @@ pub fn build_display(job_raw_output: String, app: &App) -> Result<Vec<String>> {
     let job_lines = line_vector
         .into_iter()
         .map(|line_fields| {
-            let line = line_fields
+            line_fields
                 .into_iter()
                 .enumerate()
                 .filter_map(|(index, field)| {
@@ -81,8 +81,7 @@ pub fn build_display(job_raw_output: String, app: &App) -> Result<Vec<String>> {
                     }
                 })
                 .collect::<Vec<_>>()
-                .join(" ");
-            line
+                .join(" ")
         })
         .collect();
     Ok(job_lines)
@@ -106,7 +105,7 @@ pub fn parse_job_id(job_line: &str) -> Result<String> {
     Ok(results.to_string())
 }
 
-fn parse_start(lines: &Vec<&str>, pattern_start: &str) -> Result<String> {
+fn parse_start(lines: &[&str], pattern_start: &str) -> Result<String> {
     let parsed = lines.iter().find_map(|line| {
         if line.starts_with(pattern_start) {
             let path = line.split(pattern_start).nth(1).unwrap();
@@ -119,7 +118,7 @@ fn parse_start(lines: &Vec<&str>, pattern_start: &str) -> Result<String> {
 }
 
 pub fn parse_job_details(job_id: &str, job_info: &str) -> Result<JobDetails> {
-    let lines: Vec<&str> = job_info.split(['\n']).map(|s| s.trim()).collect();
+    let lines: Vec<&str> = job_info.split('\n').map(|s| s.trim()).collect();
     let err_file = parse_start(&lines, "StdErr=")?;
     let log_file = parse_start(&lines, "StdOut=")?;
     let job_detail = JobDetails {
@@ -133,8 +132,8 @@ pub fn parse_job_details(job_id: &str, job_info: &str) -> Result<JobDetails> {
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum DisplayMode {
-    CPU,
-    RAM,
+    Cpu,
+    Ram,
 }
 
 impl DisplayMode {
@@ -150,8 +149,8 @@ impl DisplayMode {
             "NODE",
         ];
         let mut specific_fields = match self {
-            DisplayMode::CPU => vec!["NODES"],
-            DisplayMode::RAM => vec![""],
+            DisplayMode::Cpu => vec!["NODES"],
+            DisplayMode::Ram => vec![""],
         };
         let mut fields = default_fields.to_vec();
         fields.append(&mut specific_fields);

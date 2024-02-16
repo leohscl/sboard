@@ -12,6 +12,6 @@ pub struct Cli {
     pub run_mode: RunMode,
     #[arg(long)]
     pub refresh: bool,
-    #[arg(value_enum, default_value_t = DisplayMode::CPU)]
+    #[arg(value_enum, default_value_t = DisplayMode::Cpu)]
     pub display_mode: DisplayMode,
 }
