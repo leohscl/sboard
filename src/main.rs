@@ -19,7 +19,7 @@ use ui::ui;
 
 fn main() -> Result<()> {
     color_eyre::install()?;
-    let logfile = tracing_appender::rolling::never("/home/leo/project/sboard/logs", "log.txt");
+    let logfile = tracing_appender::rolling::never("logs", "log.txt");
     let file_subscriber = tracing_subscriber::fmt().with_writer(logfile).finish();
     tracing::subscriber::set_global_default(file_subscriber)
         .expect("setting file subscriber failed");
