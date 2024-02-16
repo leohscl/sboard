@@ -1,26 +1,37 @@
+use crate::app::App;
+use crate::app::JobDetails;
 use crate::parser::RunMode;
 use clap::ValueEnum;
 use color_eyre::eyre::Result;
+use color_eyre::Report;
 use std::collections::HashMap;
 use std::process::Command;
 
-pub fn run_command(run_mode: &RunMode, args: &Vec<&str>) -> Result<String> {
+pub fn run_squeue(run_mode: RunMode) -> Result<String> {
+    let squeue_args = vec!["--me", "--format=%all"];
+    run_command(run_mode, "squeue", &squeue_args)
+}
+
+pub fn run_scontrol(run_mode: RunMode, id: &str) -> Result<String> {
+    let scontrol_args = vec!["show", "job", id];
+    run_command(run_mode, "scontrol", &scontrol_args)
+}
+
+fn run_command(run_mode: RunMode, cmd: &str, command_args: &Vec<&str>) -> Result<String> {
     let output_jobs = match run_mode {
-        RunMode::Slurm => Command::new("squeue").args(args).output()?,
+        RunMode::Slurm => Command::new(cmd).args(command_args).output()?,
         RunMode::FromFile => Command::new("/bin/cat")
             .arg("test_data/10_random_users.txt")
             .output()?,
         RunMode::Ssh => Command::new("ssh")
             .arg("maestro")
-            .arg("squeue")
-            .args(args)
+            .arg(cmd)
+            .args(command_args)
             .output()?,
     };
     let out_txt = String::from_utf8(output_jobs.stdout)?;
     Ok(out_txt)
 }
-
-use crate::app::App;
 
 pub fn build_display(job_raw_output: String, app: &App) -> Result<Vec<String>> {
     let display_mode = app.get_display();
@@ -84,6 +95,40 @@ fn rename_field(field_raw: &str) -> String {
         Some(new_field) => new_field.clone(),
         None => field_raw.to_string(),
     }
+}
+
+pub fn parse_job_id(job_line: &str) -> Result<String> {
+    // println!(job_line);
+    let results = job_line
+        .split_whitespace()
+        .next()
+        .ok_or(Report::msg("split failed"))?;
+    Ok(results.to_string())
+}
+
+fn parse_start(lines: &Vec<&str>, pattern_start: &str) -> Result<String> {
+    let parsed = lines.iter().find_map(|line| {
+        if line.starts_with(pattern_start) {
+            let path = line.split(pattern_start).nth(1).unwrap();
+            Some(path.to_string())
+        } else {
+            None
+        }
+    });
+    parsed.ok_or(Report::msg(pattern_start.to_string() + " not found"))
+}
+
+pub fn parse_job_details(job_id: &str, job_info: &str) -> Result<JobDetails> {
+    let lines: Vec<&str> = job_info.split(['\n']).map(|s| s.trim()).collect();
+    let err_file = parse_start(&lines, "StdErr=")?;
+    let log_file = parse_start(&lines, "StdOut=")?;
+    let job_detail = JobDetails {
+        job_id: job_id.to_string(),
+        err_file,
+        log_file,
+    };
+    tracing::info!("test");
+    Ok(job_detail)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
