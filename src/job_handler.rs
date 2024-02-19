@@ -17,6 +17,11 @@ pub fn run_scontrol(run_mode: RunMode, id: &str) -> Result<String> {
     run_command(run_mode, "scontrol", &scontrol_args)
 }
 
+pub fn read_file(run_mode: RunMode, path: &str) -> Result<String> {
+    let cat_args = vec![path];
+    run_command(run_mode, "cat", &cat_args)
+}
+
 fn run_command(run_mode: RunMode, cmd: &str, command_args: &Vec<&str>) -> Result<String> {
     let output_jobs = match run_mode {
         RunMode::Slurm => Command::new(cmd).args(command_args).output()?,

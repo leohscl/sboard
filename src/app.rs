@@ -1,12 +1,15 @@
+use crate::editor::Editor;
 use crate::job_handler::{self, build_display, DisplayMode};
 use crate::job_handler::{run_scontrol, run_squeue};
+use crate::parser::RunMode;
 use crate::Cli;
 use color_eyre::eyre::Result;
 use color_eyre::Report;
 
-pub enum DisplayState {
+pub enum DisplayState<'a> {
     Jobs,
     Details(JobDetails),
+    Editor(Editor<'a>),
 }
 
 pub struct JobDetails {
@@ -15,15 +18,15 @@ pub struct JobDetails {
     pub log_file: String,
 }
 
-pub struct App {
+pub struct App<'a> {
     cli: Cli,
-    pub display_state: DisplayState,
+    pub display_state: DisplayState<'a>,
     pub jobs: Option<Vec<String>>,
     pub highlighted: Option<usize>,
 }
 
-impl App {
-    pub fn new(cli: Cli) -> App {
+impl<'a> App<'a> {
+    pub fn new(cli: Cli) -> App<'a> {
         App {
             cli,
             jobs: None,
@@ -44,13 +47,31 @@ impl App {
         self.jobs.clone().ok_or(Report::msg("jobs empty"))
     }
 
-    pub fn fetch_job_info(&mut self) -> Result<()> {
+    pub fn send_enter(&mut self) -> Result<()> {
+        match self.display_state {
+            DisplayState::Jobs => self.fetch_job_info(),
+            DisplayState::Details(ref details) => {
+                let logs = Self::fetch_logs(self.cli.run_mode, &details)?;
+                self.display_state = DisplayState::Editor(Editor::new(&logs));
+                Ok(())
+            }
+            DisplayState::Editor(_) => todo!(),
+        }
+    }
+
+    fn fetch_logs(run_mode: RunMode, details: &JobDetails) -> Result<String> {
+        // TODO(lhenches): use highlighted_i
+        job_handler::read_file(run_mode, &details.log_file)
+    }
+
+    fn fetch_job_info(&mut self) -> Result<()> {
         if let Some(highlighted_i) = self.highlighted {
             let job = &self.get_jobs()?[highlighted_i];
             let job_id = job_handler::parse_job_id(job)?;
             let job_info = run_scontrol(self.cli.run_mode, &job_id)?;
             let job_details = job_handler::parse_job_details(&job_id, &job_info)?;
             self.display_state = DisplayState::Details(job_details);
+            self.highlighted = Some(0);
         }
         Ok(())
     }
@@ -82,18 +103,22 @@ impl App {
     }
 
     pub fn send_char(&mut self, c_sent: char) -> Result<()> {
-        match c_sent {
-            't' => self.cli.refresh = !self.cli.refresh,
-            'j' => self.increase_highlighted()?,
-            'k' => self.decrease_highlighted()?,
-            _ => (),
+        match self.display_state {
+            DisplayState::Editor(ref mut editor) => editor.send_char(c_sent),
+            _ => match c_sent {
+                't' => self.cli.refresh = !self.cli.refresh,
+                'j' => self.increase_highlighted()?,
+                'k' => self.decrease_highlighted()?,
+                _ => (),
+            },
         }
         Ok(())
     }
 
     pub fn send_quit(&mut self) -> bool {
         match self.display_state {
-            DisplayState::Details(_) => {
+            DisplayState::Details(_) | DisplayState::Editor(_) => {
+                self.highlighted = None;
                 self.display_state = DisplayState::Jobs;
                 false
             }
@@ -102,13 +127,37 @@ impl App {
     }
 
     fn offset_highlighted(&mut self, offset: i32) -> Result<()> {
-        let num_results = self.get_jobs()?.len() as i32;
-        if let Some(highlighted_i) = self.highlighted {
-            assert!(highlighted_i != 0 && highlighted_i < num_results as usize);
-            let new_value = (highlighted_i as i32 + offset - 1).rem_euclid(num_results - 1) + 1;
-            self.highlighted = Some(new_value as usize);
+        match self.display_state {
+            DisplayState::Jobs => {
+                let num_skip_line = 1;
+                let num_results = self.get_jobs()?.len() as i32;
+                self.offset_highlighted_with_params(offset, num_results, num_skip_line);
+            }
+            DisplayState::Details(_) => {
+                let num_results = 2;
+                let num_skip_line = 0;
+                self.offset_highlighted_with_params(offset, num_results, num_skip_line);
+            }
+            DisplayState::Editor(_) => panic!("Cannot offset in editor mode"),
         }
         Ok(())
+    }
+
+    fn offset_highlighted_with_params(
+        &mut self,
+        offset: i32,
+        num_results: i32,
+        num_skip_line: i32,
+    ) {
+        if let Some(highlighted_i) = self.highlighted {
+            assert!(
+                highlighted_i >= num_skip_line as usize && highlighted_i < num_results as usize
+            );
+            let new_value = (highlighted_i as i32 + offset - num_skip_line)
+                .rem_euclid(num_results - num_skip_line)
+                + num_skip_line;
+            self.highlighted = Some(new_value as usize);
+        }
     }
 
     fn decrease_highlighted(&mut self) -> Result<()> {
