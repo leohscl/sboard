@@ -7,7 +7,6 @@ mod ui;
 use crate::app::App;
 use better_panic::Settings;
 use clap::Parser;
-use color_eyre::eyre::Report;
 use color_eyre::eyre::Result;
 use crossterm::event;
 use crossterm::event::Event;
@@ -73,7 +72,7 @@ fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> Resu
                     }
                     KeyCode::Char(c) => app.send_char(c)?,
                     KeyCode::Enter => app.send_enter()?,
-                    _ => return Err(Report::msg("Unhandeled key press !")),
+                    _ => (),
                 }
             }
         }

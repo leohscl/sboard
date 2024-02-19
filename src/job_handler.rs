@@ -131,7 +131,6 @@ pub fn parse_job_details(job_id: &str, job_info: &str) -> Result<JobDetails> {
         err_file,
         log_file,
     };
-    tracing::info!("test");
     Ok(job_detail)
 }
 

@@ -11,8 +11,8 @@ use ratatui::widgets::ListItem;
 use ratatui::Frame;
 
 fn display_jobs(frame: &mut Frame, app: &App) {
-    if let Some(results) = app.jobs.clone() {
-        let list_items = build_list(&results, app.highlighted.clone());
+    if let DisplayState::Jobs(ref job_list) = app.display_state {
+        let list_items = build_list(&job_list.jobs, app.highlighted);
         let list_widget = build_widget(list_items, "[q]uit [t]oggle_refresh [l]ogs");
         frame.render_widget(list_widget, frame.size());
     }
@@ -20,12 +20,12 @@ fn display_jobs(frame: &mut Frame, app: &App) {
 
 fn display_details(frame: &mut Frame, app: &App, details: &JobDetails) {
     let strings = [details.err_file.clone(), details.log_file.clone()].to_vec();
-    let list_items = build_list(&strings, app.highlighted.clone());
+    let list_items = build_list(&strings, app.highlighted);
     let list_widget = build_widget(list_items, "[q]uit [v]iew");
     frame.render_widget(list_widget, frame.size());
 }
 
-fn build_list<'a>(lines: &'a Vec<String>, highlighted: Option<usize>) -> Vec<ListItem<'a>> {
+fn build_list(lines: &[String], highlighted: Option<usize>) -> Vec<ListItem> {
     lines
         .iter()
         .enumerate()
@@ -64,8 +64,9 @@ fn display_editor(frame: &mut Frame, editor: &Editor) {
 pub fn ui(frame: &mut Frame, app: &App) {
     match &app.display_state {
         DisplayState::Editor(ref editor) => display_editor(frame, editor),
-        DisplayState::Jobs => display_jobs(frame, app),
+        DisplayState::Jobs(_) => display_jobs(frame, app),
         DisplayState::Details(ref details) => display_details(frame, app, details),
+        DisplayState::Empty => (),
     }
 }
 
