@@ -1,5 +1,7 @@
 use crate::app::App;
 use crate::app::JobDetails;
+use crate::app::JobInfo;
+use crate::app::JobTime;
 use crate::parser::RunMode;
 use clap::ValueEnum;
 use color_eyre::eyre::Result;
@@ -7,9 +9,27 @@ use color_eyre::Report;
 use std::collections::HashMap;
 use std::process::Command;
 
-pub fn run_squeue(run_mode: RunMode) -> Result<String> {
+fn run_squeue(run_mode: RunMode) -> Result<String> {
     let squeue_args = vec!["--me", "--format=%all"];
     run_command(run_mode, "squeue", &squeue_args)
+}
+fn run_sacct(run_mode: RunMode) -> Result<String> {
+    let squeue_args = vec!["--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode"];
+    run_command(run_mode, "sacct", &squeue_args)
+}
+
+pub fn fetch_jobs(app: &App, job_info: JobInfo) -> Result<Vec<String>> {
+    let run_mode = app.cli.run_mode;
+    match job_info.time {
+        JobTime::Past => {
+            let sacct = run_sacct(run_mode)?;
+            format_sacct(&sacct)
+        }
+        JobTime::Current => {
+            let squeue_results = run_squeue(run_mode)?;
+            build_display(squeue_results, app)
+        }
+    }
 }
 
 pub fn run_scontrol(run_mode: RunMode, id: &str) -> Result<String> {
@@ -36,6 +56,26 @@ fn run_command(run_mode: RunMode, cmd: &str, command_args: &Vec<&str>) -> Result
     };
     let out_txt = String::from_utf8(output_jobs.stdout)?;
     Ok(out_txt)
+}
+
+fn format_sacct(sacct_res: &str) -> Result<Vec<String>> {
+    let mut line_vector: Vec<Vec<String>> = sacct_res
+        .trim_end_matches('\n')
+        .split('\n')
+        .map(|line| {
+            line.split_whitespace()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    line_vector.remove(1);
+    let num_cols = line_vector
+        .iter()
+        .next()
+        .ok_or(Report::msg("no first line in sacct results"))?
+        .len();
+    line_vector.retain(|v| v.len() == num_cols);
+    Ok(line_vector.iter().map(|l| l.join(" ")).collect())
 }
 
 pub fn build_display(job_raw_output: String, app: &App) -> Result<Vec<String>> {

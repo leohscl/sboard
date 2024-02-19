@@ -1,7 +1,7 @@
 use crate::editor::Editor;
 use crate::job_handler;
+use crate::job_handler::run_scontrol;
 use crate::job_handler::DisplayMode;
-use crate::job_handler::{run_scontrol, run_squeue};
 use crate::parser::RunMode;
 use crate::Cli;
 use color_eyre::eyre::Result;
@@ -9,13 +9,39 @@ use color_eyre::Report;
 
 pub enum DisplayState<'a> {
     Empty,
-    Jobs(JobList),
+    Jobs(JobInfo),
     Details(JobDetails),
     Editor(Editor<'a>),
 }
 
-pub struct JobList {
-    pub jobs: Vec<String>,
+#[derive(Clone)]
+pub enum JobTime {
+    Past,
+    Current,
+}
+
+#[derive(Clone)]
+pub struct JobInfo {
+    pub refresh: bool,
+    pub job_list: Vec<String>,
+    pub time: JobTime,
+}
+
+impl JobInfo {
+    fn from_result(job_list: Vec<String>, app: &App) -> Self {
+        JobInfo {
+            refresh: app.cli.refresh,
+            time: JobTime::Current,
+            job_list,
+        }
+    }
+    fn default(app: &App) -> Self {
+        JobInfo {
+            refresh: app.cli.refresh,
+            job_list: Vec::new(),
+            time: JobTime::Current,
+        }
+    }
 }
 
 pub struct JobDetails {
@@ -25,7 +51,7 @@ pub struct JobDetails {
 }
 
 pub struct App<'a> {
-    cli: Cli,
+    pub cli: Cli,
     pub display_state: DisplayState<'a>,
     pub highlighted: Option<usize>,
 }
@@ -39,17 +65,13 @@ impl<'a> App<'a> {
         }
     }
 
-    pub fn get_refresh(&self) -> bool {
-        self.cli.refresh
-    }
-
     pub fn get_display(&self) -> DisplayMode {
         self.cli.display_mode
     }
 
     fn get_jobs(&self) -> Result<Vec<String>> {
         match self.display_state {
-            DisplayState::Jobs(ref job_list) => Ok(job_list.jobs.clone()),
+            DisplayState::Jobs(ref job_info) => Ok(job_info.job_list.clone()),
             _ => panic!("Get jobs called without jobs displayed"),
         }
     }
@@ -63,7 +85,7 @@ impl<'a> App<'a> {
                 self.display_state = DisplayState::Editor(Editor::new(&logs));
                 Ok(())
             }
-            DisplayState::Editor(_) => todo!(),
+            DisplayState::Editor(_) => Ok(()),
         }
     }
 
@@ -92,28 +114,45 @@ impl<'a> App<'a> {
 
     pub fn fetch_jobs(&mut self) -> Result<()> {
         // Only fetch results if needed
-        if self.get_refresh() || matches!(self.display_state, DisplayState::Empty) {
-            let current_job_info = run_squeue(self.cli.run_mode)?;
-            let new_results = job_handler::build_display(current_job_info, self)?;
-            self.highlighted = if new_results.len() >= 2 {
-                Some(1)
-            } else {
-                None
-            };
-            self.display_state = DisplayState::Jobs(JobList { jobs: new_results });
+        let job_info = match self.display_state {
+            DisplayState::Jobs(ref j_info) => {
+                if j_info.refresh {
+                    j_info.clone()
+                } else {
+                    return Ok(());
+                }
+            }
+            DisplayState::Empty => JobInfo::default(&self),
+            _ => return Ok(()),
         };
+        let job_results = job_handler::fetch_jobs(self, job_info)?;
+        self.highlighted = if job_results.len() >= 2 {
+            Some(1)
+        } else {
+            None
+        };
+        self.update_job_display(job_results);
         Ok(())
     }
 
+    fn update_job_display(&mut self, new_results: Vec<String>) {
+        if let DisplayState::Jobs(ref mut job_info) = self.display_state {
+            job_info.job_list = new_results;
+        } else {
+            self.display_state = DisplayState::Jobs(JobInfo::from_result(new_results, self))
+        }
+    }
+
     pub fn send_char(&mut self, c_sent: char) -> Result<()> {
-        match self.display_state {
-            DisplayState::Editor(ref mut editor) => editor.send_char(c_sent),
-            _ => match c_sent {
-                't' => self.cli.refresh = !self.cli.refresh,
-                'j' => self.increase_highlighted()?,
-                'k' => self.decrease_highlighted()?,
-                _ => (),
-            },
+        match (c_sent, &mut self.display_state) {
+            (_, DisplayState::Editor(ref mut editor)) => editor.send_char(c_sent),
+            (_, DisplayState::Empty) => (),
+            ('t', DisplayState::Jobs(ref mut job_info)) => job_info.refresh = !job_info.refresh,
+            ('p', DisplayState::Jobs(ref mut job_info)) => job_info.time = JobTime::Past,
+            ('c', DisplayState::Jobs(ref mut job_info)) => job_info.time = JobTime::Current,
+            ('j', _) => self.increase_highlighted()?,
+            ('k', _) => self.decrease_highlighted()?,
+            _ => (),
         }
         Ok(())
     }
@@ -131,9 +170,9 @@ impl<'a> App<'a> {
 
     fn offset_highlighted(&mut self, offset: i32) -> Result<()> {
         match self.display_state {
-            DisplayState::Jobs(ref job_list) => {
+            DisplayState::Jobs(ref job_info) => {
                 let num_skip_line = 1;
-                let num_results = job_list.jobs.len() as i32;
+                let num_results = job_info.job_list.len() as i32;
                 self.offset_highlighted_with_params(offset, num_results, num_skip_line);
             }
             DisplayState::Details(_) => {

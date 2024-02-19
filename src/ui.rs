@@ -1,6 +1,7 @@
 use crate::app::App;
 use crate::app::DisplayState;
 use crate::app::JobDetails;
+use crate::app::JobTime;
 use crate::editor::Editor;
 use ratatui::prelude::*;
 use ratatui::widgets::block::Position;
@@ -11,9 +12,15 @@ use ratatui::widgets::ListItem;
 use ratatui::Frame;
 
 fn display_jobs(frame: &mut Frame, app: &App) {
-    if let DisplayState::Jobs(ref job_list) = app.display_state {
-        let list_items = build_list(&job_list.jobs, app.highlighted);
-        let list_widget = build_widget(list_items, "[q]uit [t]oggle_refresh [l]ogs");
+    if let DisplayState::Jobs(ref job_info) = app.display_state {
+        let list_items = build_list(&job_info.job_list, app.highlighted);
+        let option = if matches!(job_info.time, JobTime::Past) {
+            "[c]urrent"
+        } else {
+            "[p]ast"
+        };
+        let legend = "[q]uit [t]oggle_refresh ".to_string() + option;
+        let list_widget = build_widget(list_items, &legend);
         frame.render_widget(list_widget, frame.size());
     }
 }
@@ -76,12 +83,9 @@ enum LineType {
 }
 
 fn build_list_item(line: &str, line_type: LineType) -> ListItem {
-    match line_type {
-        LineType::Normal => {
-            ListItem::new(line).style(Style::default().fg(Color::White).bg(Color::Black))
-        }
-        LineType::Highlighted => {
-            ListItem::new(line).style(Style::default().fg(Color::Yellow).bg(Color::Black))
-        }
-    }
+    let font_color = match line_type {
+        LineType::Normal => Color::White,
+        LineType::Highlighted => Color::Yellow,
+    };
+    ListItem::new(line).style(Style::default().fg(font_color).bg(Color::Black))
 }
