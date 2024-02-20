@@ -9,29 +9,30 @@ use color_eyre::Report;
 use std::collections::HashMap;
 use std::process::Command;
 
+use super::job_parser::JobFields;
+
 // fn run_squeue(run_mode: RunMode) -> Result<String> {
 //     let squeue_args = vec!["--me", "--format=%all"];
 //     run_command(run_mode, "squeue", &squeue_args)
 // }
 
 fn run_sacct(run_mode: RunMode) -> Result<String> {
-    let squeue_args = vec!["--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode"];
+    let squeue_args = vec!["--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode,SubmitLine%50,WorkDir%100", "-P"];
     run_command(run_mode, "sacct", &squeue_args)
 }
 
 pub fn fetch_jobs(app: &App, job_info: JobInfo) -> Result<Vec<String>> {
     let run_mode = app.cli.run_mode;
+    let sacct_res = run_sacct(run_mode)?;
+    let all_job_fields = JobFields::from_sacct_str(&sacct_res)?;
+    let all_job_results = all_job_fields
+        .iter()
+        .map(|job_fields| job_fields.display_lines())
+        .collect();
     match job_info.time {
-        JobTime::Past => {
-            let sacct = run_sacct(run_mode)?;
-            format_sacct(&sacct)
-        }
-        JobTime::Current => {
-            let sacct = run_sacct(run_mode)?;
-            format_sacct(&sacct)
-            //     let squeue_results = run_squeue(run_mode)?;
-            //     build_display(squeue_results, app)
-        }
+        //TODO(lhenches): filter on status
+        JobTime::Past => Ok(all_job_results),
+        JobTime::Current => Ok(all_job_results),
     }
 }
 
@@ -90,60 +91,6 @@ fn format_sacct(sacct_res: &str) -> Result<Vec<String>> {
     Ok(line_vector.iter().map(|l| l.join(" ")).collect())
 }
 
-pub fn build_display(job_raw_output: String, app: &App) -> Result<Vec<String>> {
-    let display_mode = app.get_display();
-
-    let line_vector: Vec<Vec<String>> = job_raw_output
-        .trim_end_matches('\n')
-        .split('\n')
-        .enumerate()
-        .map(|(index, line)| {
-            line.split('|')
-                .map(|str| {
-                    if index == 0 {
-                        rename_field(str)
-                    } else {
-                        str.to_string()
-                    }
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect();
-    let mut fields_keep = display_mode.get_fields();
-    let all_fields = &line_vector[0];
-    let indicies: Vec<_> = all_fields
-        .iter()
-        .enumerate()
-        .filter_map(|(index, field)| {
-            if fields_keep.contains(field) {
-                fields_keep.retain(|f| f != field);
-                Some(index)
-            } else {
-                None
-            }
-        })
-        .collect();
-    let job_lines = line_vector
-        .into_iter()
-        .map(|line_fields| {
-            line_fields
-                .into_iter()
-                .enumerate()
-                .filter_map(|(index, field)| {
-                    if indicies.contains(&index) {
-                        let field_fmt = format!("{:12}", field);
-                        Some(field_fmt)
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(" ")
-        })
-        .collect();
-    Ok(job_lines)
-}
-
 fn rename_field(field_raw: &str) -> String {
     let mut rename_dict = HashMap::new();
     rename_dict.insert("NODELIST(REASON)", "NODE".to_string());
@@ -196,38 +143,4 @@ pub enum DisplayMode {
 pub enum OutputFormat {
     Sacct,
     Squeue,
-}
-
-pub struct JobFields {
-    job_id: String,
-    job_name: String,
-    partition: String,
-    account: String,
-    alloc_cpus: String,
-    state: String,
-    exit_code: String,
-    submit_line: String,
-    workdir: String,
-}
-
-impl DisplayMode {
-    fn get_fields(&self) -> Vec<String> {
-        let default_fields = [
-            "JOBID",
-            "PARTITION",
-            "NAME",
-            "USER",
-            "STATE",
-            "TIME",
-            "TIME_LIMI",
-            "NODE",
-        ];
-        let mut specific_fields = match self {
-            DisplayMode::Cpu => vec!["NODES"],
-            DisplayMode::Ram => vec![""],
-        };
-        let mut fields = default_fields.to_vec();
-        fields.append(&mut specific_fields);
-        fields.into_iter().map(|str| str.to_string()).collect()
-    }
 }
