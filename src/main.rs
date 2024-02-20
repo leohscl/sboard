@@ -1,6 +1,6 @@
 mod app;
 mod editor;
-mod job_handler;
+mod jobs;
 mod parser;
 mod ui;
 

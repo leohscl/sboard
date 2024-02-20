@@ -1,7 +1,7 @@
 use crate::editor::Editor;
-use crate::job_handler;
-use crate::job_handler::run_scontrol;
-use crate::job_handler::DisplayMode;
+use crate::jobs::job_handler;
+// use crate::jobs::job_handler::run_scontrol;
+use crate::jobs::job_handler::DisplayMode;
 use crate::parser::RunMode;
 use crate::Cli;
 use color_eyre::eyre::Result;
@@ -25,6 +25,7 @@ pub struct JobInfo {
     pub refresh: bool,
     pub job_list: Vec<String>,
     pub time: JobTime,
+    pub changed: bool,
 }
 
 impl JobInfo {
@@ -33,6 +34,7 @@ impl JobInfo {
             refresh: app.cli.refresh,
             time: JobTime::Current,
             job_list,
+            changed: false,
         }
     }
     fn default(app: &App) -> Self {
@@ -40,6 +42,7 @@ impl JobInfo {
             refresh: app.cli.refresh,
             job_list: Vec::new(),
             time: JobTime::Current,
+            changed: false,
         }
     }
 }
@@ -79,7 +82,8 @@ impl<'a> App<'a> {
     pub fn send_enter(&mut self) -> Result<()> {
         match self.display_state {
             DisplayState::Empty => Ok(()),
-            DisplayState::Jobs(_) => self.fetch_job_info(),
+            // DisplayState::Jobs(_) => self.fetch_job_info(),
+            DisplayState::Jobs(_) => todo!(),
             DisplayState::Details(ref details) => {
                 let logs = Self::fetch_logs(self.cli.run_mode, details)?;
                 self.display_state = DisplayState::Editor(Editor::new(&logs));
@@ -94,29 +98,30 @@ impl<'a> App<'a> {
         job_handler::read_file(run_mode, &details.log_file)
     }
 
-    fn fetch_job_info(&mut self) -> Result<()> {
-        if let DisplayState::Jobs(_) = self.display_state {
-            if let Some(highlighted_i) = self.highlighted {
-                let job = &self.get_jobs()?[highlighted_i];
-                let job_id = job_handler::parse_job_id(job)?;
-                let job_info = run_scontrol(self.cli.run_mode, &job_id)?;
-                let job_details = job_handler::parse_job_details(&job_id, &job_info)?;
-                self.display_state = DisplayState::Details(job_details);
-                self.highlighted = Some(0);
-            }
-        } else {
-            return Err(Report::msg(
-                "fetch_job_info called when no jobs are displayed",
-            ));
-        }
-        Ok(())
-    }
+    // fn fetch_job_info(&mut self) -> Result<()> {
+    //     if let DisplayState::Jobs(_) = self.display_state {
+    //         if let Some(highlighted_i) = self.highlighted {
+    //             let job = &self.get_jobs()?[highlighted_i];
+    //             let job_id = job_handler::parse_job_id(job)?;
+    //             let job_info = run_scontrol(self.cli.run_mode, &job_id)?;
+    //             let job_details = job_handler::parse_job_details(&job_id, &job_info)?;
+    //             self.display_state = DisplayState::Details(job_details);
+    //             self.highlighted = Some(0);
+    //         }
+    //     } else {
+    //         return Err(Report::msg(
+    //             "fetch_job_info called when no jobs are displayed",
+    //         ));
+    //     }
+    //     Ok(())
+    // }
 
     pub fn fetch_jobs(&mut self) -> Result<()> {
         // Only fetch results if needed
         let job_info = match self.display_state {
-            DisplayState::Jobs(ref j_info) => {
-                if j_info.refresh {
+            DisplayState::Jobs(ref mut j_info) => {
+                if j_info.refresh | j_info.changed {
+                    j_info.changed = false;
                     j_info.clone()
                 } else {
                     return Ok(());
@@ -148,8 +153,14 @@ impl<'a> App<'a> {
             (_, DisplayState::Editor(ref mut editor)) => editor.send_char(c_sent),
             (_, DisplayState::Empty) => (),
             ('t', DisplayState::Jobs(ref mut job_info)) => job_info.refresh = !job_info.refresh,
-            ('p', DisplayState::Jobs(ref mut job_info)) => job_info.time = JobTime::Past,
-            ('c', DisplayState::Jobs(ref mut job_info)) => job_info.time = JobTime::Current,
+            ('p', DisplayState::Jobs(ref mut job_info)) => {
+                job_info.time = JobTime::Past;
+                job_info.changed = true;
+            }
+            ('c', DisplayState::Jobs(ref mut job_info)) => {
+                job_info.time = JobTime::Current;
+                job_info.changed = true;
+            }
             ('j', _) => self.increase_highlighted()?,
             ('k', _) => self.decrease_highlighted()?,
             _ => (),

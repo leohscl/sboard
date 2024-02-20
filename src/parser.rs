@@ -1,4 +1,4 @@
-use crate::job_handler::DisplayMode;
+use crate::jobs::job_handler::DisplayMode;
 use clap::{Parser, ValueEnum};
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum RunMode {

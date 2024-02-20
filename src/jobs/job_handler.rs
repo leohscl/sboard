@@ -9,10 +9,11 @@ use color_eyre::Report;
 use std::collections::HashMap;
 use std::process::Command;
 
-fn run_squeue(run_mode: RunMode) -> Result<String> {
-    let squeue_args = vec!["--me", "--format=%all"];
-    run_command(run_mode, "squeue", &squeue_args)
-}
+// fn run_squeue(run_mode: RunMode) -> Result<String> {
+//     let squeue_args = vec!["--me", "--format=%all"];
+//     run_command(run_mode, "squeue", &squeue_args)
+// }
+
 fn run_sacct(run_mode: RunMode) -> Result<String> {
     let squeue_args = vec!["--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode"];
     run_command(run_mode, "sacct", &squeue_args)
@@ -26,15 +27,26 @@ pub fn fetch_jobs(app: &App, job_info: JobInfo) -> Result<Vec<String>> {
             format_sacct(&sacct)
         }
         JobTime::Current => {
-            let squeue_results = run_squeue(run_mode)?;
-            build_display(squeue_results, app)
+            let sacct = run_sacct(run_mode)?;
+            format_sacct(&sacct)
+            //     let squeue_results = run_squeue(run_mode)?;
+            //     build_display(squeue_results, app)
         }
     }
 }
 
-pub fn run_scontrol(run_mode: RunMode, id: &str) -> Result<String> {
-    let scontrol_args = vec!["show", "job", id];
-    run_command(run_mode, "scontrol", &scontrol_args)
+// pub fn run_scontrol(run_mode: RunMode, id: &str) -> Result<String> {
+//     let scontrol_args = vec!["show", "job", id];
+//     run_command(run_mode, "scontrol", &scontrol_args)
+// }
+
+pub fn get_log_files_finished_job(
+    run_mode: RunMode,
+    workdir: &str,
+    job_id: &str,
+) -> Result<String> {
+    let find_args = [workdir, "-name", job_id];
+    run_command(run_mode, "find", &find_args)
 }
 
 pub fn read_file(run_mode: RunMode, path: &str) -> Result<String> {
@@ -42,7 +54,7 @@ pub fn read_file(run_mode: RunMode, path: &str) -> Result<String> {
     run_command(run_mode, "cat", &cat_args)
 }
 
-fn run_command(run_mode: RunMode, cmd: &str, command_args: &Vec<&str>) -> Result<String> {
+fn run_command(run_mode: RunMode, cmd: &str, command_args: &[&str]) -> Result<String> {
     let output_jobs = match run_mode {
         RunMode::Slurm => Command::new(cmd).args(command_args).output()?,
         RunMode::FromFile => Command::new("/bin/cat")
@@ -178,6 +190,24 @@ pub fn parse_job_details(job_id: &str, job_info: &str) -> Result<JobDetails> {
 pub enum DisplayMode {
     Cpu,
     Ram,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum OutputFormat {
+    Sacct,
+    Squeue,
+}
+
+pub struct JobFields {
+    job_id: String,
+    job_name: String,
+    partition: String,
+    account: String,
+    alloc_cpus: String,
+    state: String,
+    exit_code: String,
+    submit_line: String,
+    workdir: String,
 }
 
 impl DisplayMode {
