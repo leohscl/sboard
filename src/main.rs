@@ -60,7 +60,9 @@ fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result
 fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> Result<()> {
     loop {
         app.fetch_jobs()?;
-        terminal.draw(|frame| ui(frame, app))?;
+        terminal.draw(|frame| {
+            ui(frame, app);
+        })?;
         if event::poll(std::time::Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
                 let should_quit = app.send_keycode(key.code)?;

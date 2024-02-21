@@ -1,51 +1,15 @@
 use crate::app::App;
 use crate::app::DisplayState;
 use crate::app::JobTime;
-use crate::app::MyPopup;
 use crate::editor::Editor;
 use ratatui::prelude::*;
 use ratatui::widgets::block::Position;
 use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
-use ratatui::widgets::Clear;
 use ratatui::widgets::List;
 use ratatui::widgets::ListItem;
-use ratatui::widgets::Paragraph;
 use ratatui::Frame;
-use std::cmp::min;
-
-struct BasicPopupWidget {
-    popup: MyPopup,
-}
-
-impl Widget for BasicPopupWidget {
-    fn render(self, area: Rect, buf: &mut Buffer)
-    where
-        Self: Sized,
-    {
-        let popup = self.popup;
-        let height = area.height / 6;
-        let width = area.width / 6;
-        let area = centered_rect(width, height, area);
-        Clear.render(area, buf);
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .title(popup.popup_text);
-        Paragraph::new("press any key to exit")
-            .block(block)
-            .render(area, buf);
-    }
-}
-
-/// Create a rectangle centered in the given area. Code from tui-popup crate.
-fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
-    Rect {
-        x: area.width.saturating_sub(width) / 2,
-        y: area.height.saturating_sub(height) / 2,
-        width: min(width, area.width),
-        height: min(height, area.height),
-    }
-}
+use tui_popup::Popup;
 
 fn display_jobs(frame: &mut Frame, app: &App) {
     if let DisplayState::Jobs(ref job_info) = app.display_state {
@@ -119,11 +83,10 @@ pub fn ui(frame: &mut Frame, app: &App) {
 }
 
 fn display_popup(frame: &mut Frame, app: &App) {
-    if let Some(ref popup) = app.popup {
-        let wrapper_widget = BasicPopupWidget {
-            popup: popup.clone(),
-        };
-        frame.render_widget(wrapper_widget, frame.size());
+    if let Some(ref my_popup) = app.popup {
+        let area = frame.size();
+        let popup = Popup::new(my_popup.popup_text.clone(), "Press any key to exit");
+        frame.render_widget(popup.to_widget(), area);
     }
 }
 
