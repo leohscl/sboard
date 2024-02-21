@@ -1,5 +1,8 @@
 use color_eyre::Result;
 use phf::phf_map;
+use tracing::info;
+
+use crate::{jobs::job_handler, parser::RunMode};
 
 static SACCT_MAP: phf::Map<&'static str, usize> = phf_map! {
     "JobID" => 0,
@@ -13,16 +16,17 @@ static SACCT_MAP: phf::Map<&'static str, usize> = phf_map! {
     "WorkDir" => 8,
 };
 
+#[derive(Clone)]
 pub struct JobFields {
-    job_id: String,
-    job_name: String,
-    partition: String,
-    account: String,
-    alloc_cpus: String,
-    state: String,
-    exit_code: String,
-    submit_line: String,
-    workdir: String,
+    pub job_id: String,
+    pub job_name: String,
+    pub partition: String,
+    pub account: String,
+    pub alloc_cpus: String,
+    pub state: String,
+    pub exit_code: String,
+    pub submit_line: String,
+    pub workdir: String,
 }
 
 impl JobFields {
@@ -48,11 +52,7 @@ impl JobFields {
             .split('\n')
             .map(|line| {
                 let raw_fields = line.split('|').map(|f| f.to_string()).collect::<Vec<_>>();
-                if raw_fields.len() != SACCT_MAP.len() {
-                    tracing::info!(?raw_fields);
-                    panic!("len error")
-                }
-                // assert_eq!();
+                assert_eq!(raw_fields.len(), SACCT_MAP.len());
                 raw_fields
             })
             .collect();
@@ -99,24 +99,18 @@ impl JobFields {
         ]
         .join(", ")
     }
+}
+pub fn fetch_logs(run_mode: RunMode, fields: &JobFields) -> Result<Vec<String>> {
+    // try to get log file
+    let find_result =
+        job_handler::get_log_files_finished_job(run_mode, &fields.workdir, &fields.job_id)?;
+    info!(find_result);
+    // parse logs into multiple files
+    let vec_logs = find_result
+        .trim_end_matches('\n')
+        .split('\n')
+        .map(|s| s.to_string())
+        .collect();
 
-    // fn get_fields(&self) -> Vec<String> {
-    //     let default_fields = [
-    //         "JOBID",
-    //         "PARTITION",
-    //         "NAME",
-    //         "USER",
-    //         "STATE",
-    //         "TIME",
-    //         "TIME_LIMI",
-    //         "NODE",
-    //     ];
-    //     let mut specific_fields = match self {
-    //         DisplayMode::Cpu => vec!["NODES"],
-    //         DisplayMode::Ram => vec![""],
-    //     };
-    //     let mut fields = default_fields.to_vec();
-    //     fields.append(&mut specific_fields);
-    //     fields.into_iter().map(|str| str.to_string()).collect()
-    // }
+    Ok(vec_logs)
 }

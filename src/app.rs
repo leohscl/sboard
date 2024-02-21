@@ -1,16 +1,15 @@
-use crate::editor::Editor;
+use core::panic;
+
 use crate::jobs::job_handler;
-// use crate::jobs::job_handler::run_scontrol;
-use crate::jobs::job_handler::DisplayMode;
-use crate::parser::RunMode;
+use crate::jobs::job_parser::JobFields;
 use crate::Cli;
-use color_eyre::eyre::Result;
-use color_eyre::Report;
+use crate::{editor::Editor, jobs::job_parser};
+use color_eyre::eyre::{Report, Result};
 
 pub enum DisplayState<'a> {
     Empty,
-    Jobs(JobInfo),
-    Details(JobDetails),
+    Jobs(JobQueryInfo),
+    Details(Vec<String>),
     Editor(Editor<'a>),
 }
 
@@ -21,16 +20,16 @@ pub enum JobTime {
 }
 
 #[derive(Clone)]
-pub struct JobInfo {
+pub struct JobQueryInfo {
     pub refresh: bool,
-    pub job_list: Vec<String>,
+    pub job_list: Vec<JobFields>,
     pub time: JobTime,
     pub changed: bool,
 }
 
-impl JobInfo {
-    fn from_result(job_list: Vec<String>, app: &App) -> Self {
-        JobInfo {
+impl JobQueryInfo {
+    fn from_result(job_list: Vec<JobFields>, app: &App) -> Self {
+        JobQueryInfo {
             refresh: app.cli.refresh,
             time: JobTime::Current,
             job_list,
@@ -38,19 +37,13 @@ impl JobInfo {
         }
     }
     fn default(app: &App) -> Self {
-        JobInfo {
+        JobQueryInfo {
             refresh: app.cli.refresh,
             job_list: Vec::new(),
             time: JobTime::Current,
             changed: false,
         }
     }
-}
-
-pub struct JobDetails {
-    pub job_id: String,
-    pub err_file: String,
-    pub log_file: String,
 }
 
 pub struct App<'a> {
@@ -68,53 +61,16 @@ impl<'a> App<'a> {
         }
     }
 
-    pub fn get_display(&self) -> DisplayMode {
-        self.cli.display_mode
-    }
-
-    fn get_jobs(&self) -> Result<Vec<String>> {
-        match self.display_state {
-            DisplayState::Jobs(ref job_info) => Ok(job_info.job_list.clone()),
-            _ => panic!("Get jobs called without jobs displayed"),
-        }
-    }
-
     pub fn send_enter(&mut self) -> Result<()> {
         match self.display_state {
             DisplayState::Empty => Ok(()),
-            // DisplayState::Jobs(_) => self.fetch_job_info(),
             DisplayState::Jobs(_) => todo!(),
-            DisplayState::Details(ref details) => {
-                let logs = Self::fetch_logs(self.cli.run_mode, details)?;
-                self.display_state = DisplayState::Editor(Editor::new(&logs));
-                Ok(())
+            DisplayState::Details(ref _details) => {
+                todo!()
             }
             DisplayState::Editor(_) => Ok(()),
         }
     }
-
-    fn fetch_logs(run_mode: RunMode, details: &JobDetails) -> Result<String> {
-        // TODO(lhenches): use highlighted_i
-        job_handler::read_file(run_mode, &details.log_file)
-    }
-
-    // fn fetch_job_info(&mut self) -> Result<()> {
-    //     if let DisplayState::Jobs(_) = self.display_state {
-    //         if let Some(highlighted_i) = self.highlighted {
-    //             let job = &self.get_jobs()?[highlighted_i];
-    //             let job_id = job_handler::parse_job_id(job)?;
-    //             let job_info = run_scontrol(self.cli.run_mode, &job_id)?;
-    //             let job_details = job_handler::parse_job_details(&job_id, &job_info)?;
-    //             self.display_state = DisplayState::Details(job_details);
-    //             self.highlighted = Some(0);
-    //         }
-    //     } else {
-    //         return Err(Report::msg(
-    //             "fetch_job_info called when no jobs are displayed",
-    //         ));
-    //     }
-    //     Ok(())
-    // }
 
     pub fn fetch_jobs(&mut self) -> Result<()> {
         // Only fetch results if needed
@@ -127,7 +83,7 @@ impl<'a> App<'a> {
                     return Ok(());
                 }
             }
-            DisplayState::Empty => JobInfo::default(&self),
+            DisplayState::Empty => JobQueryInfo::default(&self),
             _ => return Ok(()),
         };
         let job_results = job_handler::fetch_jobs(self, job_info)?;
@@ -140,11 +96,11 @@ impl<'a> App<'a> {
         Ok(())
     }
 
-    fn update_job_display(&mut self, new_results: Vec<String>) {
+    fn update_job_display(&mut self, new_results: Vec<JobFields>) {
         if let DisplayState::Jobs(ref mut job_info) = self.display_state {
             job_info.job_list = new_results;
         } else {
-            self.display_state = DisplayState::Jobs(JobInfo::from_result(new_results, self))
+            self.display_state = DisplayState::Jobs(JobQueryInfo::from_result(new_results, self))
         }
     }
 
@@ -152,6 +108,17 @@ impl<'a> App<'a> {
         match (c_sent, &mut self.display_state) {
             (_, DisplayState::Editor(ref mut editor)) => editor.send_char(c_sent),
             (_, DisplayState::Empty) => (),
+            ('l', DisplayState::Jobs(ref mut job_info)) => {
+                let highlighted_i = self.highlighted.ok_or(Report::msg("No highlights"))?;
+                let job_fields = &job_info.job_list[highlighted_i];
+                let logs = job_parser::fetch_logs(self.cli.run_mode, job_fields)?;
+                if logs.is_empty() {
+                    todo!()
+                } else {
+                    self.highlighted = Some(0);
+                    self.display_state = DisplayState::Details(logs);
+                }
+            }
             ('t', DisplayState::Jobs(ref mut job_info)) => job_info.refresh = !job_info.refresh,
             ('p', DisplayState::Jobs(ref mut job_info)) => {
                 job_info.time = JobTime::Past;
@@ -160,6 +127,10 @@ impl<'a> App<'a> {
             ('c', DisplayState::Jobs(ref mut job_info)) => {
                 job_info.time = JobTime::Current;
                 job_info.changed = true;
+            }
+            ('v', DisplayState::Details(logs)) => {
+                let logs = job_handler::read_file(self.cli.run_mode, &logs[0])?;
+                self.display_state = DisplayState::Editor(Editor::new(&logs));
             }
             ('j', _) => self.increase_highlighted()?,
             ('k', _) => self.decrease_highlighted()?,

@@ -8,7 +8,7 @@ pub enum RunMode {
 }
 #[derive(Parser)]
 pub struct Cli {
-    #[arg(value_enum, default_value_t = RunMode::Ssh)]
+    #[arg(value_enum, default_value_t = RunMode::Slurm)]
     pub run_mode: RunMode,
     #[arg(long)]
     pub refresh: bool,
