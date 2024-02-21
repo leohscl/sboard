@@ -59,13 +59,7 @@ impl JobFields {
 
         let all_fields = &line_vector[0];
         assert_eq!(all_fields.len(), SACCT_MAP.len());
-        let hash_index: Vec<_> = all_fields
-            .iter()
-            .map(|field| {
-                let index_final = SACCT_MAP[field];
-                index_final
-            })
-            .collect();
+        let hash_index: Vec<_> = all_fields.iter().map(|field| SACCT_MAP[field]).collect();
 
         let fields_correct_order = line_vector
             .into_iter()
@@ -75,7 +69,7 @@ impl JobFields {
                     .map(|&i| line[i].clone())
                     .collect::<Vec<String>>()
             })
-            .map(|line_correct_order| JobFields::from_slice(line_correct_order))
+            .map(JobFields::from_slice)
             .collect();
 
         Ok(fields_correct_order)
@@ -106,11 +100,15 @@ pub fn fetch_logs(run_mode: RunMode, fields: &JobFields) -> Result<Vec<String>> 
         job_handler::get_log_files_finished_job(run_mode, &fields.workdir, &fields.job_id)?;
     info!(find_result);
     // parse logs into multiple files
-    let vec_logs = find_result
-        .trim_end_matches('\n')
-        .split('\n')
-        .map(|s| s.to_string())
-        .collect();
+    let vec_logs = if !find_result.is_empty() {
+        find_result
+            .trim_end_matches('\n')
+            .split('\n')
+            .map(|s| s.to_string())
+            .collect()
+    } else {
+        vec![]
+    };
 
     Ok(vec_logs)
 }

@@ -24,7 +24,7 @@ pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
     let sacct_res = run_sacct(run_mode)?;
     let mut all_job_fields = JobFields::from_sacct_str(&sacct_res)?;
     // remove fields with empty partition
-    all_job_fields.retain(|job_fields| job_fields.partition != "");
+    all_job_fields.retain(|job_fields| !job_fields.partition.is_empty());
     match job_info.time {
         JobTime::Current => {
             all_job_fields

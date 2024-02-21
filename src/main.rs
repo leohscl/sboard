@@ -10,7 +10,6 @@ use clap::Parser;
 use color_eyre::eyre::Result;
 use crossterm::event;
 use crossterm::event::Event;
-use crossterm::event::KeyCode;
 use crossterm::execute;
 use crossterm::terminal::*;
 use parser::Cli;
@@ -64,15 +63,9 @@ fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> Resu
         terminal.draw(|frame| ui(frame, app))?;
         if event::poll(std::time::Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Char('q') => {
-                        if app.send_quit() {
-                            break;
-                        }
-                    }
-                    KeyCode::Char(c) => app.send_char(c)?,
-                    KeyCode::Enter => app.send_enter()?,
-                    _ => (),
+                let should_quit = app.send_keycode(key.code)?;
+                if should_quit {
+                    break;
                 }
             }
         }

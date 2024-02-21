@@ -5,6 +5,7 @@ use crate::jobs::job_parser::JobFields;
 use crate::Cli;
 use crate::{editor::Editor, jobs::job_parser};
 use color_eyre::eyre::{Report, Result};
+use crossterm::event::KeyCode;
 
 pub enum DisplayState<'a> {
     Empty,
@@ -17,6 +18,11 @@ pub enum DisplayState<'a> {
 pub enum JobTime {
     Past,
     Current,
+}
+
+#[derive(Clone)]
+pub struct MyPopup {
+    pub popup_text: String,
 }
 
 #[derive(Clone)]
@@ -50,6 +56,7 @@ pub struct App<'a> {
     pub cli: Cli,
     pub display_state: DisplayState<'a>,
     pub highlighted: Option<usize>,
+    pub popup: Option<MyPopup>,
 }
 
 impl<'a> App<'a> {
@@ -57,11 +64,12 @@ impl<'a> App<'a> {
         App {
             cli,
             highlighted: None,
+            popup: None,
             display_state: DisplayState::Empty,
         }
     }
 
-    pub fn send_enter(&mut self) -> Result<()> {
+    fn send_enter(&mut self) -> Result<()> {
         match self.display_state {
             DisplayState::Empty => Ok(()),
             DisplayState::Jobs(_) => todo!(),
@@ -83,7 +91,7 @@ impl<'a> App<'a> {
                     return Ok(());
                 }
             }
-            DisplayState::Empty => JobQueryInfo::default(&self),
+            DisplayState::Empty => JobQueryInfo::default(self),
             _ => return Ok(()),
         };
         let job_results = job_handler::fetch_jobs(self, job_info)?;
@@ -103,8 +111,21 @@ impl<'a> App<'a> {
             self.display_state = DisplayState::Jobs(JobQueryInfo::from_result(new_results, self))
         }
     }
+    pub fn send_keycode(&mut self, keycode: KeyCode) -> Result<bool> {
+        if self.popup.is_some() {
+            self.popup = None;
+        } else {
+            match keycode {
+                KeyCode::Char('q') => return Ok(self.send_quit()),
+                KeyCode::Char(c) => self.send_char(c)?,
+                KeyCode::Enter => self.send_enter()?,
+                _ => (),
+            }
+        }
+        Ok(false)
+    }
 
-    pub fn send_char(&mut self, c_sent: char) -> Result<()> {
+    fn send_char(&mut self, c_sent: char) -> Result<()> {
         match (c_sent, &mut self.display_state) {
             (_, DisplayState::Editor(ref mut editor)) => editor.send_char(c_sent),
             (_, DisplayState::Empty) => (),
@@ -113,7 +134,9 @@ impl<'a> App<'a> {
                 let job_fields = &job_info.job_list[highlighted_i];
                 let logs = job_parser::fetch_logs(self.cli.run_mode, job_fields)?;
                 if logs.is_empty() {
-                    todo!()
+                    self.popup = Some(MyPopup {
+                        popup_text: "No log file found.".to_string(),
+                    })
                 } else {
                     self.highlighted = Some(0);
                     self.display_state = DisplayState::Details(logs);
@@ -139,7 +162,7 @@ impl<'a> App<'a> {
         Ok(())
     }
 
-    pub fn send_quit(&mut self) -> bool {
+    fn send_quit(&mut self) -> bool {
         match self.display_state {
             DisplayState::Details(_) | DisplayState::Editor(_) => {
                 self.highlighted = None;
