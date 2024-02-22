@@ -9,11 +9,6 @@ use tracing::info;
 
 use super::job_parser::JobFields;
 
-// fn run_squeue(run_mode: RunMode) -> Result<String> {
-//     let squeue_args = vec!["--me", "--format=%all"];
-//     run_command(run_mode, "squeue", &squeue_args)
-// }
-
 fn run_sacct(run_mode: RunMode, hours_before_now: u16) -> Result<String> {
     let fmt_time = format!("now-{}hours", hours_before_now);
     let sacct_args = vec!["--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode,SubmitLine%50,WorkDir%100", "-P", "-S", &fmt_time];

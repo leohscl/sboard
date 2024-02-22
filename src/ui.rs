@@ -1,6 +1,7 @@
 use crate::app::App;
 use crate::app::DisplayState;
 use crate::app::JobTime;
+use crate::app::{DESCRIPTION_JOB, DESCRIPTION_LOG};
 use crate::editor::Editor;
 use ratatui::prelude::*;
 use ratatui::widgets::block::Position;
@@ -24,7 +25,7 @@ fn display_jobs(frame: &mut Frame, app: &App) {
         } else {
             "[p]ast"
         };
-        let legend = "[q]uit [t]oggle_refresh ".to_string() + option;
+        let legend = DESCRIPTION_JOB.to_string() + option;
         let list_widget = build_widget(list_items, &legend);
         frame.render_widget(list_widget, frame.size());
     }
@@ -68,7 +69,7 @@ fn display_editor(frame: &mut Frame, editor: &Editor) {
 
 fn display_details(frame: &mut Frame, app: &App, log_files: &[String]) {
     let list_items = build_list(log_files, app.highlighted);
-    let list_widget = build_widget(list_items, "[q]uit [v]iew");
+    let list_widget = build_widget(list_items, DESCRIPTION_LOG);
     frame.render_widget(list_widget, frame.size());
 }
 

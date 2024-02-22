@@ -69,12 +69,12 @@ impl<'a> App<'a> {
         }
     }
 
-    fn send_enter(&mut self) -> Result<()> {
+    fn send_enter(&mut self) -> Result<bool> {
         match self.display_state {
-            DisplayState::Empty => Ok(()),
+            DisplayState::Empty => Ok(false),
             DisplayState::Jobs(_) => self.send_char('l'),
             DisplayState::Details(_) => self.send_char('v'),
-            DisplayState::Editor(_) => Ok(()),
+            DisplayState::Editor(_) => Ok(false),
         }
     }
 
@@ -112,52 +112,18 @@ impl<'a> App<'a> {
     pub fn send_keycode(&mut self, keycode: KeyCode) -> Result<bool> {
         if self.popup.is_some() {
             self.popup = None;
+            Ok(false)
         } else {
             match keycode {
-                KeyCode::Char('q') => return Ok(self.send_quit()),
-                KeyCode::Char(c) => self.send_char(c)?,
-                KeyCode::Enter => self.send_enter()?,
-                _ => (),
+                KeyCode::Char(c) => self.send_char(c),
+                KeyCode::Enter => self.send_enter(),
+                _ => Ok(false),
             }
         }
-        Ok(false)
     }
 
-    fn send_char(&mut self, c_sent: char) -> Result<()> {
-        match (c_sent, &mut self.display_state) {
-            (_, DisplayState::Editor(ref mut editor)) => editor.send_char(c_sent),
-            (_, DisplayState::Empty) => (),
-            ('l', DisplayState::Jobs(ref mut job_info)) => {
-                let highlighted_i = self.highlighted.ok_or(Report::msg("No highlights"))?;
-                let job_fields = &job_info.job_list[highlighted_i];
-                let logs = job_parser::fetch_logs(self.cli.run_mode, job_fields)?;
-                if logs.is_empty() {
-                    self.popup = Some(MyPopup {
-                        popup_text: "No log file found.".to_string(),
-                    })
-                } else {
-                    self.highlighted = Some(0);
-                    self.display_state = DisplayState::Details(logs);
-                }
-            }
-            ('t', DisplayState::Jobs(ref mut job_info)) => job_info.refresh = !job_info.refresh,
-            ('p', DisplayState::Jobs(ref mut job_info)) => {
-                job_info.time = JobTime::Past;
-                job_info.changed = true;
-            }
-            ('c', DisplayState::Jobs(ref mut job_info)) => {
-                job_info.time = JobTime::Current;
-                job_info.changed = true;
-            }
-            ('v', DisplayState::Details(logs)) => {
-                let logs = job_handler::read_file(self.cli.run_mode, &logs[0])?;
-                self.display_state = DisplayState::Editor(Editor::new(&logs));
-            }
-            ('j', _) => self.increase_highlighted()?,
-            ('k', _) => self.decrease_highlighted()?,
-            _ => (),
-        }
-        Ok(())
+    fn get_highlighted_i(highlighted: Option<usize>) -> Result<usize> {
+        highlighted.ok_or(Report::msg("No highlights"))
     }
 
     fn send_quit(&mut self) -> bool {
@@ -212,5 +178,48 @@ impl<'a> App<'a> {
 
     fn increase_highlighted(&mut self) -> Result<()> {
         self.offset_highlighted(1)
+    }
+}
+
+pub static DESCRIPTION_JOB: &'static str = "[q]uit [t]oggle_refresh [l]ogs ";
+pub static DESCRIPTION_LOG: &'static str = "[q]uit [v]iew";
+
+impl<'a> App<'a> {
+    fn send_char(&mut self, c_sent: char) -> Result<bool> {
+        match (c_sent, &mut self.display_state) {
+            ('q', _) => return Ok(self.send_quit()),
+            (_, DisplayState::Editor(ref mut editor)) => editor.send_char(c_sent),
+            (_, DisplayState::Empty) => (),
+            ('l', DisplayState::Jobs(ref mut job_info)) => {
+                let highlighted_i = Self::get_highlighted_i(self.highlighted)?;
+                let job_fields = &job_info.job_list[highlighted_i];
+                let logs = job_parser::fetch_logs(self.cli.run_mode, job_fields)?;
+                if logs.is_empty() {
+                    self.popup = Some(MyPopup {
+                        popup_text: "No log file found.".to_string(),
+                    })
+                } else {
+                    self.highlighted = Some(0);
+                    self.display_state = DisplayState::Details(logs);
+                }
+            }
+            ('t', DisplayState::Jobs(ref mut job_info)) => job_info.refresh = !job_info.refresh,
+            ('p', DisplayState::Jobs(ref mut job_info)) => {
+                job_info.time = JobTime::Past;
+                job_info.changed = true;
+            }
+            ('c', DisplayState::Jobs(ref mut job_info)) => {
+                job_info.time = JobTime::Current;
+                job_info.changed = true;
+            }
+            ('v', DisplayState::Details(logs)) => {
+                let logs = job_handler::read_file(self.cli.run_mode, &logs[0])?;
+                self.display_state = DisplayState::Editor(Editor::new(&logs));
+            }
+            ('j', _) => self.increase_highlighted()?,
+            ('k', _) => self.decrease_highlighted()?,
+            _ => (),
+        }
+        Ok(false)
     }
 }
