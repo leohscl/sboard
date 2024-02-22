@@ -1,6 +1,5 @@
 use crate::app::App;
 use crate::app::DisplayState;
-use crate::app::JobTime;
 use crate::app::{DESCRIPTION_JOB, DESCRIPTION_LOG};
 use crate::editor::Editor;
 use ratatui::prelude::*;
@@ -12,26 +11,29 @@ use ratatui::widgets::ListItem;
 use ratatui::Frame;
 use tui_popup::Popup;
 
+struct ColoredString {
+    string: String,
+    color: Color,
+}
+
 fn display_jobs(frame: &mut Frame, app: &App) {
     if let DisplayState::Jobs(ref job_info) = app.display_state {
-        let display_str: Vec<_> = job_info
+        let colored_strings: Vec<ColoredString> = job_info
             .job_list
             .iter()
-            .map(|job_fields| job_fields.display_lines())
+            .map(|job_fields| ColoredString {
+                string: job_fields.display_lines(),
+                color: job_fields.state.to_color(),
+            })
             .collect();
-        let list_items = build_list(&display_str, app.highlighted);
-        let option = if matches!(job_info.time, JobTime::Past) {
-            "[c]urrent"
-        } else {
-            "[p]ast"
-        };
-        let legend = DESCRIPTION_JOB.to_string() + option;
+        let list_items = build_list(&colored_strings, app.highlighted);
+        let legend = DESCRIPTION_JOB.to_string();
         let list_widget = build_widget(list_items, &legend);
         frame.render_widget(list_widget, frame.size());
     }
 }
 
-fn build_list(lines: &[String], highlighted: Option<usize>) -> Vec<ListItem> {
+fn build_list(lines: &[ColoredString], highlighted: Option<usize>) -> Vec<ListItem> {
     lines
         .iter()
         .enumerate()
@@ -68,7 +70,14 @@ fn display_editor(frame: &mut Frame, editor: &Editor) {
 }
 
 fn display_details(frame: &mut Frame, app: &App, log_files: &[String]) {
-    let list_items = build_list(log_files, app.highlighted);
+    let colored_strings: Vec<_> = log_files
+        .into_iter()
+        .map(|s| ColoredString {
+            string: s.clone(),
+            color: Color::Black,
+        })
+        .collect();
+    let list_items = build_list(&colored_strings, app.highlighted);
     let list_widget = build_widget(list_items, DESCRIPTION_LOG);
     frame.render_widget(list_widget, frame.size());
 }
@@ -91,15 +100,25 @@ fn display_popup(frame: &mut Frame, app: &App) {
     }
 }
 
+pub trait Colorable {
+    fn to_color(&self) -> Color;
+}
+
 enum LineType {
     Normal,
     Highlighted,
 }
 
-fn build_list_item(line: &str, line_type: LineType) -> ListItem {
-    let font_color = match line_type {
-        LineType::Normal => Color::White,
-        LineType::Highlighted => Color::Yellow,
-    };
-    ListItem::new(line).style(Style::default().fg(font_color).bg(Color::Black))
+impl Colorable for LineType {
+    fn to_color(&self) -> Color {
+        match self {
+            LineType::Normal => Color::Black,
+            LineType::Highlighted => Color::DarkGray,
+        }
+    }
+}
+
+fn build_list_item(c_str: &ColoredString, line_type: LineType) -> ListItem {
+    let bg_color = line_type.to_color();
+    ListItem::new(c_str.string.clone()).style(Style::default().fg(c_str.color).bg(bg_color))
 }

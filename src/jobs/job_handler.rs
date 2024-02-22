@@ -8,6 +8,7 @@ use std::process::Command;
 use tracing::info;
 
 use super::job_parser::JobFields;
+use super::job_parser::JobState;
 
 fn run_sacct(run_mode: RunMode, hours_before_now: u16) -> Result<String> {
     let fmt_time = format!("now-{}hours", hours_before_now);
@@ -22,14 +23,19 @@ pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
     // remove fields with empty partition
     all_job_fields.retain(|job_fields| !job_fields.partition.is_empty());
     match job_info.time {
-        JobTime::Current => {
-            all_job_fields
-                .retain(|job_fields| job_fields.state == "RUNNING" || job_fields.state == "State");
+        JobTime::Running => {
+            all_job_fields.retain(|job_fields| match job_fields.state {
+                JobState::Running | JobState::Header => true,
+                _ => false,
+            });
         }
-        JobTime::Past => {
-            all_job_fields
-                .retain(|job_fields| job_fields.state != "RUNNING" || job_fields.state == "State");
+        JobTime::Finished => {
+            all_job_fields.retain(|job_fields| match job_fields.state {
+                JobState::Running => false,
+                _ => true,
+            });
         }
+        JobTime::All => (),
     }
     let job_fields_capped = all_job_fields
         .into_iter()
@@ -37,11 +43,6 @@ pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
         .collect();
     Ok(job_fields_capped)
 }
-
-// pub fn run_scontrol(run_mode: RunMode, id: &str) -> Result<String> {
-//     let scontrol_args = vec!["show", "job", id];
-//     run_command(run_mode, "scontrol", &scontrol_args)
-// }
 
 pub fn get_log_files_finished_job(
     run_mode: RunMode,
@@ -80,9 +81,3 @@ pub enum DisplayMode {
     Cpu,
     Ram,
 }
-
-// #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-// pub enum OutputFormat {
-//     Sacct,
-//     Squeue,
-// }

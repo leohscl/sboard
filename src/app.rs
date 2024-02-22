@@ -16,8 +16,9 @@ pub enum DisplayState<'a> {
 
 #[derive(Clone)]
 pub enum JobTime {
-    Past,
-    Current,
+    Finished,
+    Running,
+    All,
 }
 
 #[derive(Clone)]
@@ -37,7 +38,7 @@ impl JobQueryInfo {
     fn from_result(job_list: Vec<JobFields>, app: &App) -> Self {
         JobQueryInfo {
             refresh: app.cli.refresh,
-            time: JobTime::Current,
+            time: JobTime::All,
             job_list,
             changed: false,
         }
@@ -46,7 +47,7 @@ impl JobQueryInfo {
         JobQueryInfo {
             refresh: app.cli.refresh,
             job_list: Vec::new(),
-            time: JobTime::Current,
+            time: JobTime::All,
             changed: false,
         }
     }
@@ -189,7 +190,8 @@ impl<'a> App<'a> {
     }
 }
 
-pub static DESCRIPTION_JOB: &'static str = "[q]uit [t]oggle_refresh [l]ogs ";
+pub static DESCRIPTION_JOB: &'static str =
+    "[q]uit [t]oggle_refresh [l]ogs [f]inished [r]unning [a]ll";
 pub static DESCRIPTION_LOG: &'static str = "[q]uit [v]iew";
 
 impl<'a> App<'a> {
@@ -212,12 +214,16 @@ impl<'a> App<'a> {
                 }
             }
             ('t', DisplayState::Jobs(ref mut job_info)) => job_info.refresh = !job_info.refresh,
-            ('p', DisplayState::Jobs(ref mut job_info)) => {
-                job_info.time = JobTime::Past;
+            ('f', DisplayState::Jobs(ref mut job_info)) => {
+                job_info.time = JobTime::Finished;
                 job_info.changed = true;
             }
-            ('c', DisplayState::Jobs(ref mut job_info)) => {
-                job_info.time = JobTime::Current;
+            ('r', DisplayState::Jobs(ref mut job_info)) => {
+                job_info.time = JobTime::Running;
+                job_info.changed = true;
+            }
+            ('a', DisplayState::Jobs(ref mut job_info)) => {
+                job_info.time = JobTime::All;
                 job_info.changed = true;
             }
             ('v', DisplayState::Details(logs)) => {
