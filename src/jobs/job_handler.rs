@@ -14,13 +14,15 @@ use super::job_parser::JobFields;
 //     run_command(run_mode, "squeue", &squeue_args)
 // }
 
-fn run_sacct(run_mode: RunMode) -> Result<String> {
-    let sacct_args = vec!["--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode,SubmitLine%50,WorkDir%100", "-P", "-S", "now-72hours"];
+fn run_sacct(run_mode: RunMode, hours_before_now: u16) -> Result<String> {
+    let fmt_time = format!("now-{}hours", hours_before_now);
+    let sacct_args = vec!["--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode,SubmitLine%50,WorkDir%100", "-P", "-S", &fmt_time];
     run_command(run_mode, "sacct", &sacct_args)
 }
 
 pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
-    let sacct_res = run_sacct(app.cli.run_mode)?;
+    let cli = &app.cli;
+    let sacct_res = run_sacct(cli.run_mode, cli.hours_before_now)?;
     let mut all_job_fields = JobFields::from_sacct_str(&sacct_res)?;
     // remove fields with empty partition
     all_job_fields.retain(|job_fields| !job_fields.partition.is_empty());
