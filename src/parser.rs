@@ -8,10 +8,12 @@ pub enum RunMode {
 }
 #[derive(Parser)]
 pub struct Cli {
-    #[arg(value_enum, default_value_t = RunMode::Slurm)]
+    #[arg(short, long, value_enum, default_value_t = RunMode::Slurm)]
     pub run_mode: RunMode,
     #[arg(long)]
     pub refresh: bool,
-    #[arg(value_enum, default_value_t = DisplayMode::Cpu)]
+    #[arg(short, long, value_enum, default_value_t = DisplayMode::Cpu)]
     pub display_mode: DisplayMode,
+    #[arg(short, long, value_parser = clap::value_parser!(u16).range(10..), default_value_t = 30)]
+    pub job_max_display: u16,
 }

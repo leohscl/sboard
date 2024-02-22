@@ -91,7 +91,7 @@ impl JobFields {
             Self::format_str(&self.submit_line),
             Self::format_str(&self.workdir),
         ]
-        .join(", ")
+        .join(" ")
     }
 }
 pub fn fetch_logs(run_mode: RunMode, fields: &JobFields) -> Result<Vec<String>> {

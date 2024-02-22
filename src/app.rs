@@ -72,10 +72,8 @@ impl<'a> App<'a> {
     fn send_enter(&mut self) -> Result<()> {
         match self.display_state {
             DisplayState::Empty => Ok(()),
-            DisplayState::Jobs(_) => todo!(),
-            DisplayState::Details(ref _details) => {
-                todo!()
-            }
+            DisplayState::Jobs(_) => self.send_char('l'),
+            DisplayState::Details(_) => self.send_char('v'),
             DisplayState::Editor(_) => Ok(()),
         }
     }

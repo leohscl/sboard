@@ -15,13 +15,12 @@ use super::job_parser::JobFields;
 // }
 
 fn run_sacct(run_mode: RunMode) -> Result<String> {
-    let squeue_args = vec!["--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode,SubmitLine%50,WorkDir%100", "-P"];
-    run_command(run_mode, "sacct", &squeue_args)
+    let sacct_args = vec!["--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode,SubmitLine%50,WorkDir%100", "-P", "-S", "now-72hours"];
+    run_command(run_mode, "sacct", &sacct_args)
 }
 
 pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
-    let run_mode = app.cli.run_mode;
-    let sacct_res = run_sacct(run_mode)?;
+    let sacct_res = run_sacct(app.cli.run_mode)?;
     let mut all_job_fields = JobFields::from_sacct_str(&sacct_res)?;
     // remove fields with empty partition
     all_job_fields.retain(|job_fields| !job_fields.partition.is_empty());
@@ -29,14 +28,17 @@ pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
         JobTime::Current => {
             all_job_fields
                 .retain(|job_fields| job_fields.state == "RUNNING" || job_fields.state == "State");
-            Ok(all_job_fields)
         }
         JobTime::Past => {
             all_job_fields
                 .retain(|job_fields| job_fields.state != "RUNNING" || job_fields.state == "State");
-            Ok(all_job_fields)
         }
     }
+    let job_fields_capped = all_job_fields
+        .into_iter()
+        .take(app.cli.job_max_display as usize)
+        .collect();
+    Ok(job_fields_capped)
 }
 
 // pub fn run_scontrol(run_mode: RunMode, id: &str) -> Result<String> {
