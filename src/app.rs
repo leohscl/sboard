@@ -4,7 +4,7 @@ use crate::jobs::job_handler;
 use crate::jobs::job_parser::JobFields;
 use crate::Cli;
 use crate::{editor::Editor, jobs::job_parser};
-use color_eyre::eyre::{Report, Result};
+use color_eyre::eyre::{Ok, Report, Result};
 use crossterm::event::KeyCode;
 
 pub enum DisplayState<'a> {
@@ -117,6 +117,14 @@ impl<'a> App<'a> {
             match keycode {
                 KeyCode::Char(c) => self.send_char(c),
                 KeyCode::Enter => self.send_enter(),
+                KeyCode::Down => {
+                    self.increase_highlighted()?;
+                    Ok(false)
+                }
+                KeyCode::Up => {
+                    self.decrease_highlighted()?;
+                    Ok(false)
+                }
                 _ => Ok(false),
             }
         }
