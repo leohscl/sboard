@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 use color_eyre::Result;
 use phf::phf_map;
 use ratatui::prelude::Color;
@@ -15,6 +16,7 @@ static SACCT_MAP: phf::Map<&'static str, usize> = phf_map! {
     "ExitCode" => 6,
     "SubmitLine" => 7,
     "WorkDir" => 8,
+    "Submit" => 9,
 };
 
 #[derive(Clone)]
@@ -28,6 +30,7 @@ pub struct JobFields {
     pub exit_code: String,
     pub submit_line: String,
     pub workdir: String,
+    pub submit: Option<NaiveDateTime>,
 }
 
 // from sacct doc
@@ -103,9 +106,15 @@ impl Colorable for JobState {
 }
 
 impl JobFields {
-    pub fn from_slice(slice: Vec<String>) -> JobFields {
-        assert_eq!(slice.len(), 9);
-        JobFields {
+    pub fn from_slice(slice: Vec<String>) -> Result<JobFields> {
+        assert_eq!(slice.len(), 10);
+        let opt_submit_date = match slice[9].as_str() {
+            "Submit" => None,
+            s => Some(NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")?),
+        };
+
+        info!("{}", &slice[9]);
+        let job_fields = JobFields {
             job_id: slice[0].clone(),
             job_name: slice[1].clone(),
             partition: slice[2].clone(),
@@ -115,7 +124,9 @@ impl JobFields {
             exit_code: slice[6].clone(),
             submit_line: slice[7].clone(),
             workdir: slice[8].clone(),
-        }
+            submit: opt_submit_date,
+        };
+        Ok(job_fields)
     }
 
     pub fn from_sacct_str(sacct_res: &str) -> Result<Vec<JobFields>> {
@@ -143,26 +154,33 @@ impl JobFields {
                     .collect::<Vec<String>>()
             })
             .map(JobFields::from_slice)
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(fields_correct_order)
     }
 
-    fn format_str(s: &str) -> String {
-        format!("{:<25}", s)
+    fn format_str(s: &str, num_c: usize) -> String {
+        // let fmt_s = format!("{{:<{}}}", num_c);
+        format!("{:width$}", s, width = num_c)
     }
 
     pub fn display_lines(&self) -> String {
+        // let submit_fmt = if let Some(ref date) = self.submit {
+        //     date.format("%Y-%m-%d %H:%M:%S").to_string()
+        // } else {
+        //     "Submit".to_string()
+        // };
         [
-            Self::format_str(&self.job_id),
-            Self::format_str(&self.job_name),
-            Self::format_str(&self.partition),
-            Self::format_str(&self.account),
-            Self::format_str(&self.alloc_cpus),
-            Self::format_str(&self.state.to_string()),
-            Self::format_str(&self.exit_code),
-            Self::format_str(&self.submit_line),
-            Self::format_str(&self.workdir),
+            Self::format_str(&self.job_id, 29),
+            Self::format_str(&self.job_name, 29),
+            Self::format_str(&self.partition, 20),
+            // Self::format_str(&self.account, 29),
+            Self::format_str(&self.alloc_cpus, 15),
+            Self::format_str(&self.state.to_string(), 40),
+            Self::format_str(&self.exit_code, 10),
+            Self::format_str(&self.submit_line, 20),
+            // Self::format_str(&self.workdir, 29),
+            // Self::format_str(&submit_fmt, 29),
         ]
         .join(" ")
     }

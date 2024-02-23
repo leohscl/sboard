@@ -12,7 +12,7 @@ use super::job_parser::JobState;
 
 fn run_sacct(run_mode: RunMode, hours_before_now: u16) -> Result<String> {
     let fmt_time = format!("now-{}hours", hours_before_now);
-    let sacct_args = vec!["--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode,SubmitLine%50,WorkDir%100", "-P", "-S", &fmt_time];
+    let sacct_args = vec!["--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode,SubmitLine%50,WorkDir%100,Submit%20", "-P", "-S", &fmt_time];
     run_command(run_mode, "sacct", &sacct_args)
 }
 
@@ -37,6 +37,7 @@ pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
         }
         JobTime::All => (),
     }
+    all_job_fields[1..].sort_by(|f1, f2| f1.submit.cmp(&f2.submit).reverse());
     let job_fields_capped = all_job_fields
         .into_iter()
         .take(app.cli.job_max_display as usize)

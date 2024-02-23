@@ -17,3 +17,4 @@ tui-textarea = "0.4.0"
 better-panic = "0.3.0"
 phf = { version = "0.11.2", features = ["macros"] }
 tui-popup = { git = "https://github.com/joshka/tui-popup", rev = "67d210f" }
+chrono = "0.4.34"
