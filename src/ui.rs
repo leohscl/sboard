@@ -74,7 +74,7 @@ fn display_details(frame: &mut Frame, app: &App, log_files: &[String]) {
         .into_iter()
         .map(|s| ColoredString {
             string: s.clone(),
-            color: Color::Black,
+            color: Color::White,
         })
         .collect();
     let list_items = build_list(&colored_strings, app.highlighted);
