@@ -227,7 +227,8 @@ impl<'a> App<'a> {
                 job_info.changed = true;
             }
             ('v', DisplayState::Details(logs)) => {
-                let logs = job_handler::read_file(self.cli.run_mode, &logs[0])?;
+                let highlighted_i = Self::get_highlighted_i(self.highlighted)?;
+                let logs = job_handler::read_file(self.cli.run_mode, &logs[highlighted_i])?;
                 self.display_state = DisplayState::Editor(Editor::new(&logs));
             }
             ('j', _) => self.increase_highlighted()?,
