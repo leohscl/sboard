@@ -6,6 +6,7 @@ use crate::Cli;
 use crate::{editor::Editor, jobs::job_parser};
 use color_eyre::eyre::{Ok, Report, Result};
 use crossterm::event::KeyCode;
+use tracing::info;
 
 pub enum DisplayState<'a> {
     Empty,
@@ -32,23 +33,96 @@ pub struct JobQueryInfo {
     pub job_list: Vec<JobFields>,
     pub time: JobTime,
     pub changed: bool,
+    pub job_display: Vec<JobFields>,
+    pub folded_jobs: Vec<bool>,
+}
+
+#[derive(Clone)]
+struct JobArrayDisplay {
+    min: u32,
+    max: u32,
+    id: String,
+    job_field: JobFields,
+}
+
+impl JobArrayDisplay {
+    fn new(id: &str, num: u32, job_field: JobFields) -> Self {
+        JobArrayDisplay {
+            min: num,
+            max: num,
+            id: id.to_string(),
+            job_field,
+        }
+    }
+
+    fn update(&mut self, num: u32) {
+        if num > self.max {
+            self.max = num;
+        }
+        if num < self.min {
+            self.min = num
+        }
+    }
+
+    fn get_as_field(mut self) -> JobFields {
+        let name = self.id + "[" + &self.min.to_string() + "-" + &self.max.to_string() + "]";
+        self.job_field.job_id = name;
+        self.job_field
+    }
 }
 
 impl JobQueryInfo {
     fn from_result(job_list: Vec<JobFields>, app: &App) -> Self {
-        JobQueryInfo {
+        let mut jqi = JobQueryInfo {
             refresh: app.cli.refresh,
             time: JobTime::All,
-            job_list,
+            job_list: job_list.clone(),
             changed: false,
-        }
+            folded_jobs: vec![false; job_list.len()],
+            job_display: vec![],
+        };
+        jqi.make_compact();
+        // info!("{:?}", &jqi.job_display);
+        jqi
     }
+
+    fn make_compact(&mut self) {
+        let mut job_display = vec![];
+        let mut opt_job_array_display: Option<JobArrayDisplay> = None;
+        self.job_list.iter().for_each(|j| {
+            if j.job_id.contains('_') && !j.job_id.contains('[') {
+                let mut split = j.job_id.split('_');
+                let array_jid = split.next().unwrap();
+                let array_num = split.next().unwrap().parse::<u32>().unwrap();
+                opt_job_array_display = match opt_job_array_display.clone() {
+                    None => Some(JobArrayDisplay::new(array_jid, array_num, j.clone())),
+                    Some(mut jobarr) => {
+                        jobarr.update(array_num);
+                        Some(jobarr)
+                    }
+                }
+            } else {
+                if let Some(jobarr) = opt_job_array_display.clone() {
+                    job_display.push(jobarr.get_as_field());
+                    opt_job_array_display = None;
+                }
+                job_display.push(j.clone())
+            }
+        });
+        if let Some(jobarr) = opt_job_array_display {
+            job_display.push(jobarr.get_as_field());
+        }
+        self.job_display = job_display;
+    }
+
     fn default(app: &App) -> Self {
         JobQueryInfo {
             refresh: app.cli.refresh,
             job_list: Vec::new(),
             time: JobTime::All,
             changed: false,
+            job_display: Vec::new(),
+            folded_jobs: Vec::new(),
         }
     }
 }
@@ -131,8 +205,8 @@ impl<'a> App<'a> {
         }
     }
 
-    fn get_highlighted_i(highlighted: Option<usize>) -> Result<usize> {
-        highlighted.ok_or(Report::msg("No highlights"))
+    fn get_highlighted_i(&self) -> Result<usize> {
+        self.highlighted.ok_or(Report::msg("No highlights"))
     }
 
     fn send_quit(&mut self) -> bool {
@@ -150,7 +224,7 @@ impl<'a> App<'a> {
         match self.display_state {
             DisplayState::Jobs(ref job_info) => {
                 let num_skip_line = 1;
-                let num_results = job_info.job_list.len() as i32;
+                let num_results = job_info.job_display.len() as i32;
                 self.offset_highlighted_with_params(offset, num_results, num_skip_line);
             }
             DisplayState::Details(_) => {
@@ -196,13 +270,13 @@ pub static DESCRIPTION_LOG: &'static str = "[q]uit [v]iew";
 
 impl<'a> App<'a> {
     fn send_char(&mut self, c_sent: char) -> Result<bool> {
+        let highlighted_i = self.get_highlighted_i()?;
         match (c_sent, &mut self.display_state) {
             ('q', _) => return Ok(self.send_quit()),
             (_, DisplayState::Editor(ref mut editor)) => editor.send_char(c_sent),
             (_, DisplayState::Empty) => (),
             ('l', DisplayState::Jobs(ref mut job_info)) => {
-                let highlighted_i = Self::get_highlighted_i(self.highlighted)?;
-                let job_fields = &job_info.job_list[highlighted_i];
+                let job_fields = &job_info.job_display[highlighted_i];
                 let logs = job_parser::fetch_logs(self.cli.run_mode, job_fields)?;
                 if logs.is_empty() {
                     self.popup = Some(MyPopup {
@@ -227,7 +301,6 @@ impl<'a> App<'a> {
                 job_info.changed = true;
             }
             ('v', DisplayState::Details(logs)) => {
-                let highlighted_i = Self::get_highlighted_i(self.highlighted)?;
                 let logs = job_handler::read_file(self.cli.run_mode, &logs[highlighted_i])?;
                 self.display_state = DisplayState::Editor(Editor::new(&logs));
             }

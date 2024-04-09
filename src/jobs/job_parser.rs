@@ -113,7 +113,6 @@ impl JobFields {
             s => Some(NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")?),
         };
 
-        info!("{}", &slice[9]);
         let job_fields = JobFields {
             job_id: slice[0].clone(),
             job_name: slice[1].clone(),

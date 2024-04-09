@@ -19,7 +19,7 @@ struct ColoredString {
 fn display_jobs(frame: &mut Frame, app: &App) {
     if let DisplayState::Jobs(ref job_info) = app.display_state {
         let colored_strings: Vec<ColoredString> = job_info
-            .job_list
+            .job_display
             .iter()
             .map(|job_fields| ColoredString {
                 string: job_fields.display_lines(),

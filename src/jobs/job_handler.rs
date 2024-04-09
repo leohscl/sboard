@@ -38,11 +38,16 @@ pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
         JobTime::All => (),
     }
     all_job_fields[1..].sort_by(|f1, f2| f1.submit.cmp(&f2.submit).reverse());
-    let job_fields_capped = all_job_fields
-        .into_iter()
-        .take(app.cli.job_max_display as usize)
-        .collect();
-    Ok(job_fields_capped)
+    let capped = false;
+    let job_fields = if capped {
+        all_job_fields
+            .into_iter()
+            .take(app.cli.job_max_display as usize)
+            .collect()
+    } else {
+        all_job_fields
+    };
+    Ok(job_fields)
 }
 
 pub fn get_log_files_finished_job(
@@ -50,7 +55,7 @@ pub fn get_log_files_finished_job(
     workdir: &str,
     job_id: &str,
 ) -> Result<String> {
-    let regex = String::from("*") + job_id + "*";
+    let regex = String::from("*") + job_id + ".*";
     let find_args = [workdir, "-name", &regex];
     info!(?find_args);
     run_command(run_mode, "find", &find_args)
