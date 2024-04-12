@@ -19,7 +19,7 @@ static SACCT_MAP: phf::Map<&'static str, usize> = phf_map! {
     "Submit" => 9,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct JobFields {
     pub job_id: String,
     pub job_name: String,
@@ -50,7 +50,7 @@ pub struct JobFields {
 // S SUSPENDED => Unknown
 // TO TIMEOUT => Timeout
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum JobState {
     Running,
     Completed,

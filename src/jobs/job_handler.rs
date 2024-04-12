@@ -29,10 +29,11 @@ pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
             });
         }
         JobTime::Finished => {
-            all_job_fields.retain(|job_fields| matches!(job_fields.state, JobState::Running))
+            all_job_fields.retain(|job_fields| !matches!(job_fields.state, JobState::Running))
         }
         JobTime::All => (),
     }
+    info!("job fields: {:?}", all_job_fields);
     all_job_fields[1..].sort_by(|f1, f2| f1.submit.cmp(&f2.submit).reverse());
     let capped = false;
     let job_fields = if capped {
