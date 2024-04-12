@@ -157,9 +157,8 @@ impl<'a> App<'a> {
     }
 }
 
-pub static DESCRIPTION_JOB: &'static str =
-    "[q]uit [t]oggle_refresh [l]ogs [f]inished [r]unning [a]ll";
-pub static DESCRIPTION_LOG: &'static str = "[q]uit [v]iew";
+pub static DESCRIPTION_JOB: &str = "[q]uit [t]oggle_refresh [l]ogs [f]inished [r]unning [a]ll";
+pub static DESCRIPTION_LOG: &str = "[q]uit [v]iew";
 
 impl<'a> App<'a> {
     fn send_char(&mut self, c_sent: char) -> Result<bool> {

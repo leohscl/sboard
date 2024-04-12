@@ -24,16 +24,12 @@ pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
     all_job_fields.retain(|job_fields| !job_fields.partition.is_empty());
     match job_info.time {
         JobTime::Running => {
-            all_job_fields.retain(|job_fields| match job_fields.state {
-                JobState::Running | JobState::Header => true,
-                _ => false,
+            all_job_fields.retain(|job_fields| {
+                matches!(job_fields.state, JobState::Running | JobState::Header)
             });
         }
         JobTime::Finished => {
-            all_job_fields.retain(|job_fields| match job_fields.state {
-                JobState::Running => false,
-                _ => true,
-            });
+            all_job_fields.retain(|job_fields| matches!(job_fields.state, JobState::Running))
         }
         JobTime::All => (),
     }

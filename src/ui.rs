@@ -71,7 +71,7 @@ fn display_editor(frame: &mut Frame, editor: &Editor) {
 
 fn display_details(frame: &mut Frame, app: &App, log_files: &[String]) {
     let colored_strings: Vec<_> = log_files
-        .into_iter()
+        .iter()
         .map(|s| ColoredString {
             string: s.clone(),
             color: Color::White,
