@@ -55,7 +55,12 @@ pub fn get_log_files_finished_job(
     workdir: &str,
     job_id: &str,
 ) -> Result<String> {
-    let regex = String::from("*") + job_id + ".*";
+    let regex_id = if job_id.contains('[') {
+        job_id.split('[').next().unwrap().to_string() + "_*"
+    } else {
+        job_id.to_string()
+    };
+    let regex = String::from("*") + &regex_id + ".*";
     let find_args = [workdir, "-name", &regex];
     info!(?find_args);
     run_command(run_mode, "find", &find_args)

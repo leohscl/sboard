@@ -32,10 +32,7 @@ pub fn initialize_panic_handler() {
 fn main() -> Result<()> {
     color_eyre::install()?;
     initialize_panic_handler();
-    let logfile = tracing_appender::rolling::never("logs", "log.txt");
-    let file_subscriber = tracing_subscriber::fmt().with_writer(logfile).finish();
-    tracing::subscriber::set_global_default(file_subscriber)
-        .expect("setting file subscriber failed");
+    setup_logging();
     let cli = Cli::parse();
     let mut terminal = setup_terminal()?;
     let mut app = App::new(cli);
@@ -43,6 +40,19 @@ fn main() -> Result<()> {
     restore_terminal(&mut terminal)?;
     run_result?;
     Ok(())
+}
+
+#[cfg(debug_assertions)]
+fn setup_logging() {
+    let logfile = tracing_appender::rolling::never("logs", "log.txt");
+    let file_subscriber = tracing_subscriber::fmt().with_writer(logfile).finish();
+    tracing::subscriber::set_global_default(file_subscriber)
+        .expect("setting file subscriber failed");
+}
+
+#[cfg(not(debug_assertions))]
+fn setup_logging() {
+    // Do nothing in release mode
 }
 
 fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>> {

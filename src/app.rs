@@ -6,7 +6,6 @@ use crate::Cli;
 use crate::{editor::Editor, jobs::job_parser};
 use color_eyre::eyre::{Ok, Report, Result};
 use crossterm::event::KeyCode;
-use tracing::info;
 
 pub enum DisplayState<'a> {
     Empty,
