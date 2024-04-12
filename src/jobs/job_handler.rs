@@ -1,6 +1,6 @@
 use crate::app::App;
-use crate::app::JobQueryInfo;
-use crate::app::JobTime;
+use crate::job_query_info::JobQueryInfo;
+use crate::job_query_info::JobTime;
 use crate::parser::RunMode;
 use clap::ValueEnum;
 use color_eyre::eyre::Result;
