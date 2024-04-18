@@ -159,27 +159,30 @@ impl JobFields {
     }
 
     fn format_str(s: &str, num_c: usize) -> String {
-        // let fmt_s = format!("{{:<{}}}", num_c);
-        format!("{:width$}", s, width = num_c)
+        format!(
+            "{:width$}",
+            format!("{:.width$}", s, width = num_c),
+            width = num_c
+        )
     }
 
     pub fn display_lines(&self) -> String {
-        // let submit_fmt = if let Some(ref date) = self.submit {
-        //     date.format("%Y-%m-%d %H:%M:%S").to_string()
-        // } else {
-        //     "Submit".to_string()
-        // };
+        let submit_fmt = if let Some(ref date) = self.submit {
+            date.format("%Y-%m-%d %H:%M:%S").to_string()
+        } else {
+            "Submit".to_string()
+        };
         [
-            Self::format_str(&self.job_id, 29),
-            Self::format_str(&self.job_name, 29),
-            Self::format_str(&self.partition, 20),
+            Self::format_str(&self.job_id, 15),
+            Self::format_str(&self.job_name, 20),
+            Self::format_str(&self.partition, 14),
             // Self::format_str(&self.account, 29),
-            Self::format_str(&self.alloc_cpus, 15),
-            Self::format_str(&self.state.to_string(), 40),
+            Self::format_str(&self.alloc_cpus, 14),
+            Self::format_str(&self.state.to_string(), 35),
             Self::format_str(&self.exit_code, 10),
-            Self::format_str(&self.submit_line, 20),
+            Self::format_str(&self.submit_line, 25),
             // Self::format_str(&self.workdir, 29),
-            // Self::format_str(&submit_fmt, 29),
+            Self::format_str(&submit_fmt, 20),
         ]
         .join(" ")
     }
@@ -188,7 +191,6 @@ pub fn fetch_logs(run_mode: RunMode, fields: &JobFields) -> Result<Vec<String>> 
     // try to get log file
     let find_result =
         job_handler::get_log_files_finished_job(run_mode, &fields.workdir, &fields.job_id)?;
-    info!(find_result);
     // parse logs into multiple files
     let vec_logs = if !find_result.is_empty() {
         find_result

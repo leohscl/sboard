@@ -5,7 +5,6 @@ use crate::parser::RunMode;
 use clap::ValueEnum;
 use color_eyre::eyre::Result;
 use std::process::Command;
-use tracing::info;
 
 use super::job_parser::JobFields;
 use super::job_parser::JobState;
@@ -28,12 +27,12 @@ pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
                 matches!(job_fields.state, JobState::Running | JobState::Header)
             });
         }
-        JobTime::Finished => {
-            all_job_fields.retain(|job_fields| !matches!(job_fields.state, JobState::Running))
-        }
+        JobTime::Finished => all_job_fields.retain(|job_fields| {
+            !matches!(job_fields.state, JobState::Running)
+                | matches!(job_fields.state, JobState::Header)
+        }),
         JobTime::All => (),
     }
-    info!("job fields: {:?}", all_job_fields);
     all_job_fields[1..].sort_by(|f1, f2| f1.submit.cmp(&f2.submit).reverse());
     let capped = false;
     let job_fields = if capped {
@@ -58,8 +57,7 @@ pub fn get_log_files_finished_job(
         job_id.to_string()
     };
     let regex = String::from("*") + &regex_id + ".*";
-    let find_args = [workdir, "-name", &regex];
-    info!(?find_args);
+    let find_args = [workdir, "-maxdepth", "2", "-name", &regex];
     run_command(run_mode, "find", &find_args)
 }
 

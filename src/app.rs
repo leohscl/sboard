@@ -7,6 +7,7 @@ use crate::{editor::Editor, jobs::job_parser};
 use color_eyre::eyre::{Ok, Report, Result};
 use core::panic;
 use crossterm::event::KeyCode;
+use tracing::info;
 
 pub enum DisplayState<'a> {
     Empty,
@@ -73,8 +74,11 @@ impl<'a> App<'a> {
     fn update_job_display(&mut self, new_results: Vec<JobFields>) {
         if let DisplayState::Jobs(ref mut job_info) = self.display_state {
             job_info.job_list = new_results;
+            job_info.make_display()
         } else {
-            self.display_state = DisplayState::Jobs(JobQueryInfo::from_result(new_results, self))
+            let mut jqi = JobQueryInfo::from_result(new_results, self);
+            jqi.make_display();
+            self.display_state = DisplayState::Jobs(jqi);
         }
     }
     pub fn send_keycode(&mut self, keycode: KeyCode) -> Result<bool> {
@@ -162,13 +166,13 @@ pub static DESCRIPTION_LOG: &str = "[q]uit [v]iew";
 
 impl<'a> App<'a> {
     fn send_char(&mut self, c_sent: char) -> Result<bool> {
-        let highlighted_i = self.get_highlighted_i()?;
+        let res_highlighted_i = self.get_highlighted_i();
         match (c_sent, &mut self.display_state) {
             ('q', _) => return Ok(self.send_quit()),
             (_, DisplayState::Editor(ref mut editor)) => editor.send_char(c_sent),
             (_, DisplayState::Empty) => (),
             ('l', DisplayState::Jobs(ref mut job_info)) => {
-                let job_fields = &job_info.job_display[highlighted_i];
+                let job_fields = &job_info.job_display[res_highlighted_i?];
                 let logs = job_parser::fetch_logs(self.cli.run_mode, job_fields)?;
                 if logs.is_empty() {
                     self.popup = Some(MyPopup {
@@ -193,7 +197,7 @@ impl<'a> App<'a> {
                 job_info.changed = true;
             }
             ('v', DisplayState::Details(logs)) => {
-                let logs = job_handler::read_file(self.cli.run_mode, &logs[highlighted_i])?;
+                let logs = job_handler::read_file(self.cli.run_mode, &logs[res_highlighted_i?])?;
                 self.display_state = DisplayState::Editor(Editor::new(&logs));
             }
             ('j', _) => self.increase_highlighted()?,

@@ -1,7 +1,7 @@
 use crate::jobs::job_parser::JobFields;
 use crate::App;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct JobQueryInfo {
     pub refresh: bool,
     pub job_list: Vec<JobFields>,
@@ -11,7 +11,7 @@ pub struct JobQueryInfo {
     pub folded_jobs: Vec<bool>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum JobTime {
     Finished,
     Running,
@@ -28,12 +28,12 @@ impl JobQueryInfo {
             folded_jobs: vec![false; job_list.len()],
             job_display: vec![],
         };
-        jqi.make_compact();
+        jqi.make_display();
         // info!("{:?}", &jqi.job_display);
         jqi
     }
 
-    fn make_compact(&mut self) {
+    pub fn make_display(&mut self) {
         let mut job_display = vec![];
         let mut opt_job_array_display: Option<JobArrayDisplay> = None;
         self.job_list.iter().for_each(|j| {
