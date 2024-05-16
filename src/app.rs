@@ -7,7 +7,7 @@ use crate::{editor::Editor, jobs::job_parser};
 use color_eyre::eyre::{Ok, Report, Result};
 use core::panic;
 use crossterm::event::KeyCode;
-use tracing::info;
+// use tracing::info;
 
 pub enum DisplayState<'a> {
     Empty,
@@ -24,7 +24,9 @@ pub struct MyPopup {
 pub struct App<'a> {
     pub cli: Cli,
     pub display_state: DisplayState<'a>,
+    pub cached_display: Option<DisplayState<'a>>,
     pub highlighted: Option<usize>,
+    pub cached_highlight: Option<usize>,
     pub popup: Option<MyPopup>,
 }
 
@@ -32,7 +34,9 @@ impl<'a> App<'a> {
     pub fn new(cli: Cli) -> App<'a> {
         App {
             cli,
+            cached_display: None,
             highlighted: None,
+            cached_highlight: None,
             popup: None,
             display_state: DisplayState::Empty,
         }
@@ -109,8 +113,14 @@ impl<'a> App<'a> {
     fn send_quit(&mut self) -> bool {
         match self.display_state {
             DisplayState::Details(_) | DisplayState::Editor(_) => {
-                self.highlighted = None;
-                self.display_state = DisplayState::Empty;
+                if let Some(cached) = self.cached_display.take() {
+                    self.highlighted = self.cached_highlight;
+                    self.cached_highlight = None;
+                    self.display_state = cached;
+                    self.cached_display = None;
+                } else {
+                    self.display_state = DisplayState::Empty;
+                }
                 false
             }
             DisplayState::Jobs(_) | DisplayState::Empty => true,
@@ -121,11 +131,11 @@ impl<'a> App<'a> {
         match self.display_state {
             DisplayState::Jobs(ref job_info) => {
                 let num_skip_line = 1;
-                let num_results = job_info.job_display.len() as i32;
+                let num_results = job_info.job_display.len();
                 self.offset_highlighted_with_params(offset, num_results, num_skip_line);
             }
-            DisplayState::Details(_) => {
-                let num_results = 2;
+            DisplayState::Details(ref strings) => {
+                let num_results = strings.len();
                 let num_skip_line = 0;
                 self.offset_highlighted_with_params(offset, num_results, num_skip_line);
             }
@@ -138,15 +148,13 @@ impl<'a> App<'a> {
     fn offset_highlighted_with_params(
         &mut self,
         offset: i32,
-        num_results: i32,
+        num_results: usize,
         num_skip_line: i32,
     ) {
         if let Some(highlighted_i) = self.highlighted {
-            assert!(
-                highlighted_i >= num_skip_line as usize && highlighted_i < num_results as usize
-            );
+            assert!(highlighted_i >= num_skip_line as usize && highlighted_i < num_results);
             let new_value = (highlighted_i as i32 + offset - num_skip_line)
-                .rem_euclid(num_results - num_skip_line)
+                .rem_euclid(num_results as i32 - num_skip_line)
                 + num_skip_line;
             self.highlighted = Some(new_value as usize);
         }
@@ -197,6 +205,8 @@ impl<'a> App<'a> {
                 job_info.changed = true;
             }
             ('v', DisplayState::Details(logs)) => {
+                self.cached_display = Some(DisplayState::Details(logs.clone()));
+                self.cached_highlight = self.highlighted;
                 let logs = job_handler::read_file(self.cli.run_mode, &logs[res_highlighted_i?])?;
                 self.display_state = DisplayState::Editor(Editor::new(&logs));
             }

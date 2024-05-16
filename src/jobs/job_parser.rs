@@ -2,7 +2,6 @@ use chrono::NaiveDateTime;
 use color_eyre::Result;
 use phf::phf_map;
 use ratatui::prelude::Color;
-use tracing::info;
 
 use crate::{jobs::job_handler, parser::RunMode, ui::Colorable};
 
