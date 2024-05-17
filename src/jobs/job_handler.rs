@@ -1,47 +1,114 @@
+use super::job_parser::JobFields;
+use super::job_parser::JobState;
 use crate::app::App;
 use crate::job_query_info::JobQueryInfo;
 use crate::job_query_info::JobTime;
+use crate::jobs::job_parser::ValueOrCol;
 use crate::parser::RunMode;
 use clap::ValueEnum;
 use color_eyre::eyre::Result;
 use std::process::Command;
+use tracing::info;
 
-use super::job_parser::JobFields;
-use super::job_parser::JobState;
+static FORMAT_STR: &str = "--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode,SubmitLine%50,WorkDir%100,Submit%20,ReqMem,MaxRSS";
+// "JobIDRaw",
+// "JobID",
+// "State",
+// "AllocCPUS",
+// "TotalCPU",
+// "Elapsed",
+// "Timelimit",
+// "REQMEM",
+// "MaxRSS",
+// "NNodes",
+// "NTasks",
+// "Partition",
+// Account             AdminComment        AllocCPUS           AllocNodes
+// AllocTRES           AssocID             AveCPU              AveCPUFreq
+// AveDiskRead         AveDiskWrite        AvePages            AveRSS
+// AveVMSize           BlockID             Cluster             Comment
+// Constraints         ConsumedEnergy      ConsumedEnergyRaw   Container
+// CPUTime             CPUTimeRAW          DBIndex             DerivedExitCode
+// Elapsed             ElapsedRaw          Eligible            End
+// ExitCode            Extra               FailedNode          Flags
+// GID                 Group               JobID               JobIDRaw
+// JobName             Layout              Licenses            MaxDiskRead
+// MaxDiskReadNode     MaxDiskReadTask     MaxDiskWrite        MaxDiskWriteNode
+// MaxDiskWriteTask    MaxPages            MaxPagesNode        MaxPagesTask
+// MaxRSS              MaxRSSNode          MaxRSSTask          MaxVMSize
+// MaxVMSizeNode       MaxVMSizeTask       McsLabel            MinCPU
+// MinCPUNode          MinCPUTask          NCPUS               NNodes
+// NodeList            NTasks              Partition           Planned
+// PlannedCPU          PlannedCPURAW       Priority            QOS
+// QOSRAW              Reason              ReqCPUFreq          ReqCPUFreqGov
+// ReqCPUFreqMax       ReqCPUFreqMin       ReqCPUS             ReqMem
+// ReqNodes            ReqTRES             Reservation         ReservationId
+// Start               State               Submit              SubmitLine
+// Suspended           SystemComment       SystemCPU           Timelimit
+// TimelimitRaw        TotalCPU            TRESUsageInAve      TRESUsageInMax
+// TRESUsageInMaxNode  TRESUsageInMaxTask  TRESUsageInMin      TRESUsageInMinNode
+// TRESUsageInMinTask  TRESUsageInTot      TRESUsageOutAve     TRESUsageOutMax
+// TRESUsageOutMaxNode TRESUsageOutMaxTask TRESUsageOutMin     TRESUsageOutMinNode
+// TRESUsageOutMinTask TRESUsageOutTot     UID                 User
+// UserCPU             WCKey               WCKeyID             WorkDir
 
 fn run_sacct(run_mode: RunMode, hours_before_now: u16) -> Result<String> {
     let fmt_time = format!("now-{}hours", hours_before_now);
-    let sacct_args = vec!["--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode,SubmitLine%50,WorkDir%100,Submit%20", "-P", "-S", &fmt_time];
+    let sacct_args = vec![FORMAT_STR, "-P", "-S", &fmt_time];
     run_command(run_mode, "sacct", &sacct_args)
+}
+
+fn update_max_rss(job_fields: &mut JobFields, all_job_fields: &[JobFields]) {
+    job_fields.maxrss = ValueOrCol::Value(
+        all_job_fields
+            .iter()
+            .filter_map(|f| {
+                info!("{:?}", f);
+                if job_fields.job_id.starts_with(&f.job_id) {
+                    Some(f.maxrss.clone().take().unwrap())
+                } else {
+                    None
+                }
+            })
+            .max()
+            .expect("Sums max rss"),
+    );
 }
 
 pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
     let cli = &app.cli;
     let sacct_res = run_sacct(cli.run_mode, cli.hours_before_now)?;
-    let mut all_job_fields = JobFields::from_sacct_str(&sacct_res)?;
+    let all_job_fields = JobFields::from_sacct_str(&sacct_res)?;
+    info!("{:?}", all_job_fields);
     // remove fields with empty partition
-    all_job_fields.retain(|job_fields| !job_fields.partition.is_empty());
+    let mut job_fields_with_partition = all_job_fields.clone();
+    job_fields_with_partition.retain(|job_fields| !job_fields.partition.is_empty());
+    // get maxRSS info from job steps
+    job_fields_with_partition
+        .iter_mut()
+        .filter(|j| j.job_id != "JobID")
+        .for_each(|job_fields| update_max_rss(job_fields, &all_job_fields));
     match job_info.time {
         JobTime::Running => {
-            all_job_fields.retain(|job_fields| {
+            job_fields_with_partition.retain(|job_fields| {
                 matches!(job_fields.state, JobState::Running | JobState::Header)
             });
         }
-        JobTime::Finished => all_job_fields.retain(|job_fields| {
+        JobTime::Finished => job_fields_with_partition.retain(|job_fields| {
             !matches!(job_fields.state, JobState::Running)
                 | matches!(job_fields.state, JobState::Header)
         }),
         JobTime::All => (),
     }
-    all_job_fields[1..].sort_by(|f1, f2| f1.submit.cmp(&f2.submit).reverse());
+    job_fields_with_partition[1..].sort_by(|f1, f2| f1.submit.cmp(&f2.submit).reverse());
     let capped = false;
     let job_fields = if capped {
-        all_job_fields
+        job_fields_with_partition
             .into_iter()
             .take(app.cli.job_max_display as usize)
             .collect()
     } else {
-        all_job_fields
+        job_fields_with_partition
     };
     Ok(job_fields)
 }

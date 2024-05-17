@@ -12,7 +12,8 @@ use crossterm::event::KeyCode;
 pub enum DisplayState<'a> {
     Empty,
     Jobs(JobQueryInfo),
-    Details(Vec<String>),
+    Logs(Vec<String>),
+    Report(JobFields),
     Editor(Editor<'a>),
 }
 
@@ -45,8 +46,9 @@ impl<'a> App<'a> {
     fn send_enter(&mut self) -> Result<bool> {
         match self.display_state {
             DisplayState::Empty => Ok(false),
+            DisplayState::Report(_) => Ok(false),
             DisplayState::Jobs(_) => self.send_char('l'),
-            DisplayState::Details(_) => self.send_char('v'),
+            DisplayState::Logs(_) => self.send_char('v'),
             DisplayState::Editor(_) => Ok(false),
         }
     }
@@ -112,7 +114,7 @@ impl<'a> App<'a> {
 
     fn send_quit(&mut self) -> bool {
         match self.display_state {
-            DisplayState::Details(_) | DisplayState::Editor(_) => {
+            DisplayState::Logs(_) | DisplayState::Editor(_) | DisplayState::Report(_) => {
                 if let Some(cached) = self.cached_display.take() {
                     self.highlighted = self.cached_highlight;
                     self.cached_highlight = None;
@@ -134,12 +136,13 @@ impl<'a> App<'a> {
                 let num_results = job_info.job_display.len();
                 self.offset_highlighted_with_params(offset, num_results, num_skip_line);
             }
-            DisplayState::Details(ref strings) => {
+            DisplayState::Logs(ref strings) => {
                 let num_results = strings.len();
                 let num_skip_line = 0;
                 self.offset_highlighted_with_params(offset, num_results, num_skip_line);
             }
             DisplayState::Editor(_) => panic!("Cannot offset in editor mode"),
+            DisplayState::Report(_) => panic!("Cannot offset in report mode"),
             DisplayState::Empty => (),
         }
         Ok(())
@@ -169,7 +172,8 @@ impl<'a> App<'a> {
     }
 }
 
-pub static DESCRIPTION_JOB: &str = "[q]uit [t]oggle_refresh [l]ogs [f]inished [r]unning [a]ll";
+pub static DESCRIPTION_JOB: &str =
+    "[q]uit [t]oggle_refresh [l]ogs [f]inished [r]unning [a]ll [s]eff";
 pub static DESCRIPTION_LOG: &str = "[q]uit [v]iew";
 
 impl<'a> App<'a> {
@@ -188,7 +192,7 @@ impl<'a> App<'a> {
                     })
                 } else {
                     self.highlighted = Some(0);
-                    self.display_state = DisplayState::Details(logs);
+                    self.display_state = DisplayState::Logs(logs);
                 }
             }
             ('t', DisplayState::Jobs(ref mut job_info)) => job_info.refresh = !job_info.refresh,
@@ -200,16 +204,21 @@ impl<'a> App<'a> {
                 job_info.time = JobTime::Running;
                 job_info.changed = true;
             }
+            ('s', DisplayState::Jobs(ref mut job_info)) => {
+                let job_fields = &job_info.job_display[res_highlighted_i?];
+                self.display_state = DisplayState::Report(job_fields.clone());
+            }
             ('a', DisplayState::Jobs(ref mut job_info)) => {
                 job_info.time = JobTime::All;
                 job_info.changed = true;
             }
-            ('v', DisplayState::Details(logs)) => {
-                self.cached_display = Some(DisplayState::Details(logs.clone()));
+            ('v', DisplayState::Logs(logs)) => {
+                self.cached_display = Some(DisplayState::Logs(logs.clone()));
                 self.cached_highlight = self.highlighted;
                 let logs = job_handler::read_file(self.cli.run_mode, &logs[res_highlighted_i?])?;
                 self.display_state = DisplayState::Editor(Editor::new(&logs));
             }
+            ('j' | 'k', DisplayState::Report(_)) => {}
             ('j', _) => self.increase_highlighted()?,
             ('k', _) => self.decrease_highlighted()?,
             _ => (),

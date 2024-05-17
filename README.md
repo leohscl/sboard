@@ -4,10 +4,11 @@ As of now, it is mostly a sacct wrapper with a way to view job logs
 
 Todo:
 - [ ] Add Older/Younger option to see different time of execution
-- [ ] Handle when there are no jobs after filter
 - [ ] Add search filters
 - [ ] Job array handle mixed states
 - [ ] View partition (separate tool ?)
+- [ ] Add reportseff
+- [x] Handle when there are no jobs after filter
 - [x] Go back to logs after viewing
 - [x] Handle no logs
 - [x] Finished/Running crashes

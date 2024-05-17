@@ -2,12 +2,14 @@ use crate::app::App;
 use crate::app::DisplayState;
 use crate::app::{DESCRIPTION_JOB, DESCRIPTION_LOG};
 use crate::editor::Editor;
+use crate::jobs::job_parser::JobFields;
 use ratatui::prelude::*;
 use ratatui::widgets::block::Position;
 use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
 use ratatui::widgets::List;
 use ratatui::widgets::ListItem;
+use ratatui::widgets::{Row, Table};
 use ratatui::Frame;
 use tui_popup::Popup;
 
@@ -82,12 +84,31 @@ fn display_details(frame: &mut Frame, app: &App, log_files: &[String]) {
     frame.render_widget(list_widget, frame.size());
 }
 
+fn display_report(frame: &mut Frame, job_fields: &JobFields) {
+    let maxrss = job_fields.maxrss.clone().take().unwrap();
+    let reqmem = job_fields.reqmem.clone().take().unwrap();
+    let memory_eff = (maxrss as f64 / reqmem as f64) * 100f64;
+    let rows = [Row::new(vec![memory_eff.to_string()])];
+    // Columns widths are constrained in the same way as Layout...
+    let widths = [Constraint::Length(10)];
+    let table = Table::new(rows, widths)
+        .column_spacing(10)
+        .style(Style::new().red())
+        .header(
+            Row::new(vec!["MemEff"])
+                .style(Style::new().bold())
+                .bottom_margin(1),
+        );
+    frame.render_widget(table, frame.size());
+}
+
 pub fn ui(frame: &mut Frame, app: &App) {
     match &app.display_state {
         DisplayState::Editor(ref editor) => display_editor(frame, editor),
         DisplayState::Jobs(_) => display_jobs(frame, app),
-        DisplayState::Details(ref details) => display_details(frame, app, details),
+        DisplayState::Logs(ref details) => display_details(frame, app, details),
         DisplayState::Empty => (),
+        DisplayState::Report(job_detail) => display_report(frame, job_detail),
     }
     display_popup(frame, app);
 }

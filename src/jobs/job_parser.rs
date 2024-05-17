@@ -2,6 +2,10 @@ use chrono::NaiveDateTime;
 use color_eyre::Result;
 use phf::phf_map;
 use ratatui::prelude::Color;
+use std::default::Default;
+use std::str::FromStr;
+use tracing::info;
+// use tracing::info;
 
 use crate::{jobs::job_handler, parser::RunMode, ui::Colorable};
 
@@ -16,6 +20,8 @@ static SACCT_MAP: phf::Map<&'static str, usize> = phf_map! {
     "SubmitLine" => 7,
     "WorkDir" => 8,
     "Submit" => 9,
+    "ReqMem" => 10,
+    "MaxRSS" => 11,
 };
 
 #[derive(Clone, Debug)]
@@ -30,6 +36,8 @@ pub struct JobFields {
     pub submit_line: String,
     pub workdir: String,
     pub submit: Option<NaiveDateTime>,
+    pub reqmem: ValueOrCol<usize>,
+    pub maxrss: ValueOrCol<usize>,
 }
 
 // from sacct doc
@@ -104,14 +112,40 @@ impl Colorable for JobState {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum ValueOrCol<T> {
+    Value(T),
+    Col(String),
+}
+
+impl<T: FromStr + Default> ValueOrCol<T> {
+    pub fn take(self) -> Option<T> {
+        match self {
+            Self::Value(t) => Some(t),
+            Self::Col(_) => None,
+        }
+    }
+    pub fn from_str(s: &str) -> Self {
+        if s.is_empty() {
+            return ValueOrCol::Value(T::default());
+        }
+        match s.parse() {
+            Ok(v) => Self::Value(v),
+            Err(_) => Self::Col(s.to_string()),
+        }
+    }
+}
+
 impl JobFields {
     pub fn from_slice(slice: Vec<String>) -> Result<JobFields> {
-        assert_eq!(slice.len(), 10);
+        // assert_eq!(slice.len(), 10);
         let opt_submit_date = match slice[9].as_str() {
             "Submit" => None,
             s => Some(NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")?),
         };
-
+        // style ReqMem
+        let req_mem_no_unit = slice[10].trim_end_matches('G');
+        info!("{}", slice[10]);
         let job_fields = JobFields {
             job_id: slice[0].clone(),
             job_name: slice[1].clone(),
@@ -123,6 +157,8 @@ impl JobFields {
             submit_line: slice[7].clone(),
             workdir: slice[8].clone(),
             submit: opt_submit_date,
+            reqmem: ValueOrCol::from_str(req_mem_no_unit),
+            maxrss: ValueOrCol::from_str(&slice[11]),
         };
         Ok(job_fields)
     }
@@ -141,7 +177,13 @@ impl JobFields {
 
         let all_fields = &line_vector[0];
         assert_eq!(all_fields.len(), SACCT_MAP.len());
-        let hash_index: Vec<_> = all_fields.iter().map(|field| SACCT_MAP[field]).collect();
+        let hash_index: Vec<_> = all_fields
+            .iter()
+            .inspect(|f| {
+                info!(f);
+            })
+            .map(|field| SACCT_MAP[field])
+            .collect();
 
         let fields_correct_order = line_vector
             .into_iter()
