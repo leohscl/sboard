@@ -16,6 +16,4 @@ pub struct Cli {
     pub display_mode: DisplayMode,
     #[arg(short, long, value_parser = clap::value_parser!(u16).range(10..), default_value_t = 30)]
     pub job_max_display: u16,
-    #[arg(long, value_parser = clap::value_parser!(u16), default_value_t = 72)]
-    pub hours_before_now: u16,
 }

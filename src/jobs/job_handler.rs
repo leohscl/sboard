@@ -1,9 +1,10 @@
 use super::job_parser::JobFields;
 use super::job_parser::JobState;
 use crate::app::App;
+use crate::app::FetchTime;
 use crate::job_query_info::JobQueryInfo;
 use crate::job_query_info::JobTime;
-use crate::jobs::job_parser::ValueOrCol;
+use crate::jobs::job_parser::NumberOrCol;
 use crate::parser::RunMode;
 use clap::ValueEnum;
 use color_eyre::eyre::Result;
@@ -59,14 +60,16 @@ fn run_sacct(run_mode: RunMode, hours_before_now: u16) -> Result<String> {
 }
 
 fn update_max_rss(job_fields: &mut JobFields, all_job_fields: &[JobFields]) {
-    job_fields.maxrss = ValueOrCol::Value(
+    job_fields.maxrss = NumberOrCol::Value(
         all_job_fields
             .iter()
             .filter_map(|f| {
-                info!("{:?}", f);
-                if job_fields.job_id.starts_with(&f.job_id) {
+                info!("does it start with ? {:?}", f);
+                if f.job_id.starts_with(&job_fields.job_id) {
+                    info!("yes");
                     Some(f.maxrss.clone().take().unwrap())
                 } else {
+                    info!("no");
                     None
                 }
             })
@@ -77,7 +80,13 @@ fn update_max_rss(job_fields: &mut JobFields, all_job_fields: &[JobFields]) {
 
 pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
     let cli = &app.cli;
-    let sacct_res = run_sacct(cli.run_mode, cli.hours_before_now)?;
+    let hours_before_now = match app.fetch_time {
+        FetchTime::Today => 24,
+        FetchTime::ThreeDaysAgo => 24 * 3,
+        FetchTime::AWeekAgo => 24 * 7,
+        FetchTime::SpecificWindow { .. } => todo!(),
+    };
+    let sacct_res = run_sacct(cli.run_mode, hours_before_now)?;
     let all_job_fields = JobFields::from_sacct_str(&sacct_res)?;
     info!("{:?}", all_job_fields);
     // remove fields with empty partition
@@ -123,7 +132,8 @@ pub fn get_log_files_finished_job(
     } else {
         job_id.to_string()
     };
-    let regex = String::from("*") + &regex_id + ".*";
+    let regex = String::from("*") + &regex_id + "*";
+    // info!("regex: {}", regex);
     let find_args = [workdir, "-maxdepth", "2", "-name", &regex];
     run_command(run_mode, "find", &find_args)
 }

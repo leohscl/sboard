@@ -4,10 +4,11 @@ use crate::jobs::job_handler;
 use crate::jobs::job_parser::JobFields;
 use crate::Cli;
 use crate::{editor::Editor, jobs::job_parser};
+use chrono::NaiveDateTime;
 use color_eyre::eyre::{Ok, Report, Result};
 use core::panic;
 use crossterm::event::KeyCode;
-// use tracing::info;
+use tracing::info;
 
 pub enum DisplayState<'a> {
     Empty,
@@ -22,6 +23,38 @@ pub struct MyPopup {
     pub popup_text: String,
 }
 
+#[derive(Clone, Copy)]
+pub enum FetchTime {
+    Today,
+    ThreeDaysAgo,
+    AWeekAgo,
+    SpecificWindow {
+        start: NaiveDateTime,
+        end: NaiveDateTime,
+    },
+}
+
+impl FetchTime {
+    fn older(&self) -> FetchTime {
+        match self {
+            Today => ThreeDaysAgo,
+            ThreeDaysAgo => AWeekAgo,
+            AWeekAgo => AWeekAgo,
+            _ => *self,
+        }
+    }
+    fn newer(&self) -> FetchTime {
+        match self {
+            Today => Today,
+            ThreeDaysAgo => Today,
+            AWeekAgo => ThreeDaysAgo,
+            _ => *self,
+        }
+    }
+}
+
+use FetchTime::*;
+
 pub struct App<'a> {
     pub cli: Cli,
     pub display_state: DisplayState<'a>,
@@ -29,6 +62,7 @@ pub struct App<'a> {
     pub highlighted: Option<usize>,
     pub cached_highlight: Option<usize>,
     pub popup: Option<MyPopup>,
+    pub fetch_time: FetchTime,
 }
 
 impl<'a> App<'a> {
@@ -40,6 +74,7 @@ impl<'a> App<'a> {
             cached_highlight: None,
             popup: None,
             display_state: DisplayState::Empty,
+            fetch_time: Today,
         }
     }
 
@@ -173,7 +208,7 @@ impl<'a> App<'a> {
 }
 
 pub static DESCRIPTION_JOB: &str =
-    "[q]uit [t]oggle_refresh [l]ogs [f]inished [r]unning [a]ll [s]eff";
+    "[q]uit [t]oggle_refresh [l]ogs [f]inished [r]unning [a]ll [s]eff [o]lder [n]ewer";
 pub static DESCRIPTION_LOG: &str = "[q]uit [v]iew";
 
 impl<'a> App<'a> {
@@ -194,6 +229,14 @@ impl<'a> App<'a> {
                     self.highlighted = Some(0);
                     self.display_state = DisplayState::Logs(logs);
                 }
+            }
+            ('o', DisplayState::Jobs(ref mut job_info)) => {
+                self.fetch_time = self.fetch_time.older();
+                job_info.changed = true;
+            }
+            ('n', DisplayState::Jobs(ref mut job_info)) => {
+                self.fetch_time = self.fetch_time.newer();
+                job_info.changed = true;
             }
             ('t', DisplayState::Jobs(ref mut job_info)) => job_info.refresh = !job_info.refresh,
             ('f', DisplayState::Jobs(ref mut job_info)) => {

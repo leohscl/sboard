@@ -13,6 +13,8 @@ use ratatui::widgets::{Row, Table};
 use ratatui::Frame;
 use tui_popup::Popup;
 
+use tracing::info;
+
 struct ColoredString {
     string: String,
     color: Color,
@@ -87,8 +89,10 @@ fn display_details(frame: &mut Frame, app: &App, log_files: &[String]) {
 fn display_report(frame: &mut Frame, job_fields: &JobFields) {
     let maxrss = job_fields.maxrss.clone().take().unwrap();
     let reqmem = job_fields.reqmem.clone().take().unwrap();
+    // info!("maxrss: {}, reqmem: {}", maxrss, reqmem);
     let memory_eff = (maxrss as f64 / reqmem as f64) * 100f64;
-    let rows = [Row::new(vec![memory_eff.to_string()])];
+    let formated_mem_eff = format!("{:.1$}", memory_eff, 1);
+    let rows = [Row::new(vec![formated_mem_eff + "%"])];
     // Columns widths are constrained in the same way as Layout...
     let widths = [Constraint::Length(10)];
     let table = Table::new(rows, widths)

@@ -1,5 +1,6 @@
 use chrono::NaiveDateTime;
 use color_eyre::Result;
+use core::panic;
 use phf::phf_map;
 use ratatui::prelude::Color;
 use std::default::Default;
@@ -36,8 +37,8 @@ pub struct JobFields {
     pub submit_line: String,
     pub workdir: String,
     pub submit: Option<NaiveDateTime>,
-    pub reqmem: ValueOrCol<usize>,
-    pub maxrss: ValueOrCol<usize>,
+    pub reqmem: NumberOrCol,
+    pub maxrss: NumberOrCol,
 }
 
 // from sacct doc
@@ -113,13 +114,29 @@ impl Colorable for JobState {
 }
 
 #[derive(Clone, Debug)]
-pub enum ValueOrCol<T> {
-    Value(T),
+pub enum Unit {
+    Gigabytes,
+    Kilobytes,
+}
+
+impl Unit {
+    fn get_result_kilobytes(&self, number: usize) -> usize {
+        let multiplicator = match self {
+            Unit::Kilobytes => 1,
+            Unit::Gigabytes => 1 << 20,
+        };
+        multiplicator * number
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum NumberOrCol {
+    Value(usize),
     Col(String),
 }
 
-impl<T: FromStr + Default> ValueOrCol<T> {
-    pub fn take(self) -> Option<T> {
+impl NumberOrCol {
+    pub fn take(self) -> Option<usize> {
         match self {
             Self::Value(t) => Some(t),
             Self::Col(_) => None,
@@ -127,10 +144,19 @@ impl<T: FromStr + Default> ValueOrCol<T> {
     }
     pub fn from_str(s: &str) -> Self {
         if s.is_empty() {
-            return ValueOrCol::Value(T::default());
+            return NumberOrCol::Value(usize::default());
         }
-        match s.parse() {
-            Ok(v) => Self::Value(v),
+        if let Ok(v) = s.parse() {
+            return Self::Value(Unit::Kilobytes.get_result_kilobytes(v));
+        };
+        let (num, last_char) = s.split_at(s.len() - 1);
+        let unit = match last_char {
+            "K" => Unit::Kilobytes,
+            "G" => Unit::Gigabytes,
+            _ => return Self::Col(s.to_string()),
+        };
+        match num.parse() {
+            Ok(v) => Self::Value(unit.get_result_kilobytes(v)),
             Err(_) => Self::Col(s.to_string()),
         }
     }
@@ -144,8 +170,7 @@ impl JobFields {
             s => Some(NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")?),
         };
         // style ReqMem
-        let req_mem_no_unit = slice[10].trim_end_matches('G');
-        info!("{}", slice[10]);
+        // info!("{}", slice[10]);
         let job_fields = JobFields {
             job_id: slice[0].clone(),
             job_name: slice[1].clone(),
@@ -157,8 +182,8 @@ impl JobFields {
             submit_line: slice[7].clone(),
             workdir: slice[8].clone(),
             submit: opt_submit_date,
-            reqmem: ValueOrCol::from_str(req_mem_no_unit),
-            maxrss: ValueOrCol::from_str(&slice[11]),
+            reqmem: NumberOrCol::from_str(&slice[10]),
+            maxrss: NumberOrCol::from_str(&slice[11]),
         };
         Ok(job_fields)
     }

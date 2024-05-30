@@ -77,7 +77,7 @@ fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> Resu
         })?;
         if event::poll(std::time::Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
-                info!(?key);
+                // info!(?key);
                 let should_quit = app.send_keycode(key.code)?;
                 if should_quit {
                     break;
