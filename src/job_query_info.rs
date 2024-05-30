@@ -9,6 +9,7 @@ pub struct JobQueryInfo {
     pub changed: bool,
     pub job_display: Vec<JobFields>,
     pub folded_jobs: Vec<bool>,
+    pub efficiency_display: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -27,6 +28,7 @@ impl JobQueryInfo {
             changed: false,
             folded_jobs: vec![false; job_list.len()],
             job_display: vec![],
+            efficiency_display: false,
         };
         jqi.make_display();
         // info!("{:?}", &jqi.job_display);
@@ -70,6 +72,7 @@ impl JobQueryInfo {
             changed: false,
             job_display: Vec::new(),
             folded_jobs: Vec::new(),
+            efficiency_display: false,
         }
     }
 }

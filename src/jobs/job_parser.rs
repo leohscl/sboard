@@ -1,12 +1,12 @@
 use chrono::NaiveDateTime;
+use chrono::NaiveTime;
+use chrono::Timelike;
+use color_eyre::Report;
 use color_eyre::Result;
-use core::panic;
 use phf::phf_map;
 use ratatui::prelude::Color;
 use std::default::Default;
-use std::str::FromStr;
 use tracing::info;
-// use tracing::info;
 
 use crate::{jobs::job_handler, parser::RunMode, ui::Colorable};
 
@@ -23,6 +23,9 @@ static SACCT_MAP: phf::Map<&'static str, usize> = phf_map! {
     "Submit" => 9,
     "ReqMem" => 10,
     "MaxRSS" => 11,
+    "ElapsedRaw" => 12,
+    "TimelimitRaw" => 13,
+    "TotalCPU" => 14,
 };
 
 #[derive(Clone, Debug)]
@@ -31,7 +34,7 @@ pub struct JobFields {
     pub job_name: String,
     pub partition: String,
     pub account: String,
-    pub alloc_cpus: String,
+    pub alloc_cpus: NumberOrCol,
     pub state: JobState,
     pub exit_code: String,
     pub submit_line: String,
@@ -39,6 +42,9 @@ pub struct JobFields {
     pub submit: Option<NaiveDateTime>,
     pub reqmem: NumberOrCol,
     pub maxrss: NumberOrCol,
+    pub elapsed: NumberOrCol,
+    pub time_limit: NumberOrCol,
+    pub cpu_time_raw: NumberOrCol,
 }
 
 // from sacct doc
@@ -136,6 +142,12 @@ pub enum NumberOrCol {
 }
 
 impl NumberOrCol {
+    pub fn as_string(&self) -> String {
+        match self {
+            NumberOrCol::Value(usize) => usize.to_string(),
+            NumberOrCol::Col(s) => s.clone(),
+        }
+    }
     pub fn take(self) -> Option<usize> {
         match self {
             Self::Value(t) => Some(t),
@@ -162,6 +174,23 @@ impl NumberOrCol {
     }
 }
 
+fn parse_elapsed_format_secs(s: &str) -> Result<usize> {
+    // TODO(lhenches): handle optional [days-]
+    let usable_string = if s.contains('.') {
+        "00:".to_string() + s.split('.').next().unwrap()
+    } else {
+        s.to_string()
+    };
+    info!("usable_string: {}", usable_string);
+    // TODO(lhenches): refactor !
+    let res = NaiveTime::parse_from_str(&usable_string, "%H:%M:%S");
+    info!("res: {:?}", res);
+    if let Ok(t) = res {
+        return Ok(t.num_seconds_from_midnight() as usize);
+    };
+    Err(Report::msg("Parsing error"))
+}
+
 impl JobFields {
     pub fn from_slice(slice: Vec<String>) -> Result<JobFields> {
         // assert_eq!(slice.len(), 10);
@@ -169,23 +198,76 @@ impl JobFields {
             "Submit" => None,
             s => Some(NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")?),
         };
-        // style ReqMem
-        // info!("{}", slice[10]);
+        let alloc_cpus = NumberOrCol::from_str(&slice[4]);
+        info!("alloc_cpus: {:?}", alloc_cpus);
+        let reqmem = NumberOrCol::from_str(&slice[10]);
+        let maxrss = NumberOrCol::from_str(&slice[11]);
+        let elapsed = NumberOrCol::from_str(&slice[12]);
+        let time_limit = NumberOrCol::from_str(&slice[13]);
+        let cpu_time_raw = match slice[14].as_str() {
+            "TotalCPU" => NumberOrCol::Col("TotalCPU".to_string()),
+            s => {
+                let elapsed_cpu = parse_elapsed_format_secs(s).unwrap();
+                NumberOrCol::Value(elapsed_cpu)
+            }
+        };
+        // let total_cpu = NumberOrCol::from_str(&slice[14]);
+        // info!("maxrss: {}, reqmem: {}", maxrss, reqmem);
+        // let memory_eff = (maxrss as f64 / reqmem as f64) * 100f64;
+        // let formated_mem_eff = format!("{:.1$}", memory_eff, 1);
         let job_fields = JobFields {
             job_id: slice[0].clone(),
             job_name: slice[1].clone(),
             partition: slice[2].clone(),
             account: slice[3].clone(),
-            alloc_cpus: slice[4].clone(),
+            alloc_cpus,
             state: JobState::from_str(&slice[5]),
             exit_code: slice[6].clone(),
             submit_line: slice[7].clone(),
             workdir: slice[8].clone(),
             submit: opt_submit_date,
-            reqmem: NumberOrCol::from_str(&slice[10]),
-            maxrss: NumberOrCol::from_str(&slice[11]),
+            reqmem,
+            maxrss,
+            elapsed,
+            time_limit,
+            cpu_time_raw,
         };
         Ok(job_fields)
+    }
+
+    pub fn get_mem_eff(&self) -> String {
+        match (self.reqmem.clone().take(), self.maxrss.clone().take()) {
+            (Some(req), Some(max)) => {
+                let memory_eff = (max as f64 / req as f64) * 100f64;
+                format!("{:.1$}%", memory_eff, 1)
+            }
+            (_, _) => "MemEff".to_string(),
+        }
+    }
+
+    pub fn get_time_eff(&self) -> String {
+        match (self.elapsed.clone().take(), self.time_limit.clone().take()) {
+            (Some(elap), Some(limit)) => {
+                let time_eff = (elap as f64 / limit as f64) * 100f64;
+                format!("{:.1$}%", time_eff, 1)
+            }
+            (_, _) => "TimeEff".to_string(),
+        }
+    }
+
+    pub fn get_cpu_eff(&self) -> String {
+        match (
+            self.alloc_cpus.clone().take(),
+            self.elapsed.clone().take(),
+            self.cpu_time_raw.clone().take(),
+        ) {
+            (Some(num_cpu), Some(elapsed), Some(total)) => {
+                let max = elapsed * num_cpu;
+                let cpu_eff = (total as f64 / max as f64) * 100f64;
+                format!("{:.1$}%", cpu_eff, 1)
+            }
+            _ => "CPUEff".to_string(),
+        }
     }
 
     pub fn from_sacct_str(sacct_res: &str) -> Result<Vec<JobFields>> {
@@ -232,25 +314,33 @@ impl JobFields {
         )
     }
 
-    pub fn display_lines(&self) -> String {
+    pub fn display_lines(&self, efficiency_display: bool) -> String {
         let submit_fmt = if let Some(ref date) = self.submit {
             date.format("%Y-%m-%d %H:%M:%S").to_string()
         } else {
             "Submit".to_string()
         };
-        [
+        let mut vec_strings_display = vec![
             Self::format_str(&self.job_id, 15),
             Self::format_str(&self.job_name, 20),
             Self::format_str(&self.partition, 14),
-            // Self::format_str(&self.account, 29),
-            Self::format_str(&self.alloc_cpus, 14),
+            Self::format_str(&self.alloc_cpus.as_string(), 14),
             Self::format_str(&self.state.to_string(), 35),
-            Self::format_str(&self.exit_code, 10),
-            Self::format_str(&self.submit_line, 25),
-            // Self::format_str(&self.workdir, 29),
-            Self::format_str(&submit_fmt, 20),
-        ]
-        .join(" ")
+        ];
+        if efficiency_display {
+            vec_strings_display.extend([
+                Self::format_str(&self.get_time_eff(), 10),
+                Self::format_str(&self.get_cpu_eff(), 10),
+                Self::format_str(&self.get_mem_eff(), 10),
+            ]);
+        } else {
+            vec_strings_display.extend([
+                Self::format_str(&self.exit_code, 10),
+                Self::format_str(&self.submit_line, 25),
+                Self::format_str(&submit_fmt, 20),
+            ]);
+        }
+        vec_strings_display.join(" ")
     }
 }
 pub fn fetch_logs(run_mode: RunMode, fields: &JobFields) -> Result<Vec<String>> {

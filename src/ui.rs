@@ -26,7 +26,7 @@ fn display_jobs(frame: &mut Frame, app: &App) {
             .job_display
             .iter()
             .map(|job_fields| ColoredString {
-                string: job_fields.display_lines(),
+                string: job_fields.display_lines(job_info.efficiency_display),
                 color: job_fields.state.to_color(),
             })
             .collect();
@@ -86,25 +86,25 @@ fn display_details(frame: &mut Frame, app: &App, log_files: &[String]) {
     frame.render_widget(list_widget, frame.size());
 }
 
-fn display_report(frame: &mut Frame, job_fields: &JobFields) {
-    let maxrss = job_fields.maxrss.clone().take().unwrap();
-    let reqmem = job_fields.reqmem.clone().take().unwrap();
-    // info!("maxrss: {}, reqmem: {}", maxrss, reqmem);
-    let memory_eff = (maxrss as f64 / reqmem as f64) * 100f64;
-    let formated_mem_eff = format!("{:.1$}", memory_eff, 1);
-    let rows = [Row::new(vec![formated_mem_eff + "%"])];
-    // Columns widths are constrained in the same way as Layout...
-    let widths = [Constraint::Length(10)];
-    let table = Table::new(rows, widths)
-        .column_spacing(10)
-        .style(Style::new().red())
-        .header(
-            Row::new(vec!["MemEff"])
-                .style(Style::new().bold())
-                .bottom_margin(1),
-        );
-    frame.render_widget(table, frame.size());
-}
+// fn display_report(frame: &mut Frame, job_fields: &JobFields) {
+//     let maxrss = job_fields.maxrss.clone().take().unwrap();
+//     let reqmem = job_fields.reqmem.clone().take().unwrap();
+//     // info!("maxrss: {}, reqmem: {}", maxrss, reqmem);
+//     let memory_eff = (maxrss as f64 / reqmem as f64) * 100f64;
+//     let formated_mem_eff = format!("{:.1$}", memory_eff, 1);
+//     let rows = [Row::new(vec![formated_mem_eff + "%"])];
+//     // Columns widths are constrained in the same way as Layout...
+//     let widths = [Constraint::Length(10)];
+//     let table = Table::new(rows, widths)
+//         .column_spacing(10)
+//         .style(Style::new().red())
+//         .header(
+//             Row::new(vec!["MemEff"])
+//                 .style(Style::new().bold())
+//                 .bottom_margin(1),
+//         );
+//     frame.render_widget(table, frame.size());
+// }
 
 pub fn ui(frame: &mut Frame, app: &App) {
     match &app.display_state {
@@ -112,7 +112,7 @@ pub fn ui(frame: &mut Frame, app: &App) {
         DisplayState::Jobs(_) => display_jobs(frame, app),
         DisplayState::Logs(ref details) => display_details(frame, app, details),
         DisplayState::Empty => (),
-        DisplayState::Report(job_detail) => display_report(frame, job_detail),
+        // DisplayState::Report(job_detail) => display_report(frame, job_detail),
     }
     display_popup(frame, app);
 }

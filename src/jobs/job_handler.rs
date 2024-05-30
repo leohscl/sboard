@@ -11,7 +11,7 @@ use color_eyre::eyre::Result;
 use std::process::Command;
 use tracing::info;
 
-static FORMAT_STR: &str = "--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode,SubmitLine%50,WorkDir%100,Submit%20,ReqMem,MaxRSS";
+static FORMAT_STR: &str = "--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode,SubmitLine%50,WorkDir%100,Submit%20,ReqMem,MaxRSS,ElapsedRaw,TimelimitRaw,TotalCPU";
 // "JobIDRaw",
 // "JobID",
 // "State",
@@ -64,12 +64,9 @@ fn update_max_rss(job_fields: &mut JobFields, all_job_fields: &[JobFields]) {
         all_job_fields
             .iter()
             .filter_map(|f| {
-                info!("does it start with ? {:?}", f);
                 if f.job_id.starts_with(&job_fields.job_id) {
-                    info!("yes");
                     Some(f.maxrss.clone().take().unwrap())
                 } else {
-                    info!("no");
                     None
                 }
             })
@@ -88,7 +85,6 @@ pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
     };
     let sacct_res = run_sacct(cli.run_mode, hours_before_now)?;
     let all_job_fields = JobFields::from_sacct_str(&sacct_res)?;
-    info!("{:?}", all_job_fields);
     // remove fields with empty partition
     let mut job_fields_with_partition = all_job_fields.clone();
     job_fields_with_partition.retain(|job_fields| !job_fields.partition.is_empty());
@@ -133,7 +129,6 @@ pub fn get_log_files_finished_job(
         job_id.to_string()
     };
     let regex = String::from("*") + &regex_id + "*";
-    // info!("regex: {}", regex);
     let find_args = [workdir, "-maxdepth", "2", "-name", &regex];
     run_command(run_mode, "find", &find_args)
 }
