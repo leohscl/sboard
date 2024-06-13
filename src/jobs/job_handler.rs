@@ -65,6 +65,7 @@ fn update_max_rss(job_fields: &mut JobFields, all_job_fields: &[JobFields]) {
             .iter()
             .filter_map(|f| {
                 if f.job_id.starts_with(&job_fields.job_id) {
+                    info!("max rss: {:?}", f.maxrss);
                     Some(f.maxrss.clone().take().unwrap())
                 } else {
                     None

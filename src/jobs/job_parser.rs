@@ -122,6 +122,7 @@ impl Colorable for JobState {
 #[derive(Clone, Debug)]
 pub enum Unit {
     Gigabytes,
+    Megabytes,
     Kilobytes,
 }
 
@@ -129,6 +130,7 @@ impl Unit {
     fn get_result_kilobytes(&self, number: usize) -> usize {
         let multiplicator = match self {
             Unit::Kilobytes => 1,
+            Unit::Megabytes => 1 << 10,
             Unit::Gigabytes => 1 << 20,
         };
         multiplicator * number
@@ -161,13 +163,17 @@ impl NumberOrCol {
         if let Ok(v) = s.parse() {
             return Self::Value(Unit::Kilobytes.get_result_kilobytes(v));
         };
-        let (num, last_char) = s.split_at(s.len() - 1);
+        let (num_str, last_char) = s.split_at(s.len() - 1);
         let unit = match last_char {
             "K" => Unit::Kilobytes,
+            "M" => Unit::Megabytes,
             "G" => Unit::Gigabytes,
             _ => return Self::Col(s.to_string()),
         };
-        match num.parse() {
+        // remove floating point
+        let no_floating = num_str.split('.').next().unwrap();
+        info!("no_floating: {}", no_floating);
+        match no_floating.parse() {
             Ok(v) => Self::Value(unit.get_result_kilobytes(v)),
             Err(_) => Self::Col(s.to_string()),
         }
