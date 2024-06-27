@@ -9,21 +9,9 @@
 
 <!-- cargo-rdme start -->
 
-![Demo](https://github.com/ratatui-org/ratatui/blob/1d39444e3dea6f309cf9035be2417ac711c1abc9/examples/demo2-destroy.gif?raw=true)
+![Demo](https://github.com/leohscl/sboard/blob/22fde5c552ac5075d3980d5a1ac9b8642512b854/assets/sboard_render.gif)
 
-<div align="center">
-
-[![Crate Badge]][Crate] [![Docs Badge]][API Docs] [![CI Badge]][CI Workflow] [![Deps.rs
-Badge]][Deps.rs]<br> [![Codecov Badge]][Codecov] [![License Badge]](./LICENSE) [![Sponsors
-Badge]][GitHub Sponsors]<br> [![Discord Badge]][Discord Server] [![Matrix Badge]][Matrix]
-[![Forum Badge]][Forum]<br>
-
-[Ratatui Website] · [API Docs] · [Examples] · [Changelog] · [Breaking Changes]<br>
-[Contributing] · [Report a bug] · [Request a Feature] · [Create a Pull Request]
-
-</div>
-
-# Ratatui
+# Sboard
 
 Sboard (SLURM board) is a binary for displaying SLURM jobs in a convenient UI.
 As of now, it is mostly a sacct wrapper with a way to view job logs
