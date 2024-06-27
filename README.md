@@ -9,7 +9,7 @@
 
 <!-- cargo-rdme start -->
 
-![Demo](https://github.com/leohscl/sboard/blob/22fde5c552ac5075d3980d5a1ac9b8642512b854/assets/sboard_render.gif)
+![Demo](https://github.com/leohscl/sboard/blob/main/assets/render_sboard.gif)
 
 # Sboard
 
