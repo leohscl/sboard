@@ -217,7 +217,7 @@ impl<'a> App<'a> {
             (_, DisplayState::Empty) => (),
             ('l', DisplayState::Jobs(ref mut job_info)) => {
                 let job_fields = &job_info.job_display[res_highlighted_i?];
-                let logs = job_parser::fetch_logs(self.cli.run_mode, job_fields)?;
+                let logs = job_parser::fetch_logs(job_fields)?;
                 if logs.is_empty() {
                     self.popup = Some(MyPopup {
                         popup_text: "No log file found.".to_string(),
@@ -254,7 +254,7 @@ impl<'a> App<'a> {
             ('v', DisplayState::Logs(logs)) => {
                 self.cached_display = Some(DisplayState::Logs(logs.clone()));
                 self.cached_highlight = self.highlighted;
-                let logs = job_handler::read_file(self.cli.run_mode, &logs[res_highlighted_i?])?;
+                let logs = job_handler::read_file(&logs[res_highlighted_i?])?;
                 self.display_state = DisplayState::Editor(Editor::new(&logs));
             }
             // ('j' | 'k', DisplayState::Report(_)) => {}

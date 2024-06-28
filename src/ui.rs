@@ -2,14 +2,12 @@ use crate::app::App;
 use crate::app::DisplayState;
 use crate::app::{DESCRIPTION_JOB, DESCRIPTION_LOG};
 use crate::editor::Editor;
-use crate::jobs::job_parser::JobFields;
 use ratatui::prelude::*;
 use ratatui::widgets::block::Position;
 use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
 use ratatui::widgets::List;
 use ratatui::widgets::ListItem;
-use ratatui::widgets::{Row, Table};
 use ratatui::Frame;
 use tui_popup::Popup;
 

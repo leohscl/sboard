@@ -8,7 +8,7 @@ use ratatui::prelude::Color;
 use std::default::Default;
 use tracing::info;
 
-use crate::{jobs::job_handler, parser::RunMode, ui::Colorable};
+use crate::{jobs::job_handler, ui::Colorable};
 
 static SACCT_MAP: phf::Map<&'static str, usize> = phf_map! {
     "JobID" => 0,
@@ -349,10 +349,9 @@ impl JobFields {
         vec_strings_display.join(" ")
     }
 }
-pub fn fetch_logs(run_mode: RunMode, fields: &JobFields) -> Result<Vec<String>> {
+pub fn fetch_logs(fields: &JobFields) -> Result<Vec<String>> {
     // try to get log file
-    let find_result =
-        job_handler::get_log_files_finished_job(run_mode, &fields.workdir, &fields.job_id)?;
+    let find_result = job_handler::get_log_files_finished_job(&fields.workdir, &fields.job_id)?;
     // parse logs into multiple files
     let vec_logs = if !find_result.is_empty() {
         find_result
