@@ -18,19 +18,8 @@ As of now, it is mostly a sacct wrapper with a way to view job logs
 
 ## Installation
 
+**[Archives of precompiled binaries for ripgrep are available for Linux.](https://github.com/leohscl/sboard/releases)**
+
 ## License
 
 [MIT](./LICENSE)
-
-Todo:
-- [ ] Add search filters
-- [ ] Job array handle mixed states
-- [ ] View partition (separate tool ?)
-- [x] Add reportseff
-- [x] Add Older/Younger option to see different time of execution
-- [x] Handle when there are no jobs after filter
-- [x] Go back to logs after viewing
-- [x] Handle no logs
-- [x] Finished/Running crashes
-- [x] remove logs in release
-- [x] job array logs
