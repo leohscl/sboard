@@ -18,6 +18,8 @@ As of now, it is mostly a sacct wrapper with a way to view job logs
 
 ## Installation
 
+**[Archives of precompiled binaries for ripgrep are available for Linux.](https://github.com/leohscl/sboard/releases)**
+
 ## License
 
 [MIT](./LICENSE)
