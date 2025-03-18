@@ -189,11 +189,14 @@ fn parse_elapsed_format_secs(s: &str) -> Result<usize> {
     };
     info!("usable_string: {}", usable_string);
     // TODO(lhenches): refactor !
-    let res = NaiveTime::parse_from_str(&usable_string, "%H:%M:%S");
-    info!("res: {:?}", res);
-    if let Ok(t) = res {
-        return Ok(t.num_seconds_from_midnight() as usize);
-    };
+    if let Ok(time) = NaiveTime::parse_from_str(&usable_string, "%H:%M:%S") {
+        return Ok(time.num_seconds_from_midnight() as usize);
+    } else {
+        // second possible format
+        if let Ok(time) = NaiveTime::parse_from_str(&usable_string, "%d-%H:%M:%S") {
+            return Ok(time.num_seconds_from_midnight() as usize);
+        }
+    }
     Err(Report::msg("Parsing error"))
 }
 
@@ -331,7 +334,8 @@ impl JobFields {
             Self::format_str(&self.job_name, 20),
             Self::format_str(&self.partition, 14),
             Self::format_str(&self.alloc_cpus.as_string(), 14),
-            Self::format_str(&self.state.to_string(), 35),
+            Self::format_str(&self.state.to_string(), 20),
+            Self::format_str(&self.elapsed.as_string(), 20),
         ];
         if efficiency_display {
             vec_strings_display.extend([

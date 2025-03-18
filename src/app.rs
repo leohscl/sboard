@@ -27,6 +27,7 @@ pub enum FetchTime {
     Today,
     ThreeDaysAgo,
     AWeekAgo,
+    AMonthAgo,
     SpecificWindow {
         start: NaiveDateTime,
         end: NaiveDateTime,
@@ -38,7 +39,8 @@ impl FetchTime {
         match self {
             Today => ThreeDaysAgo,
             ThreeDaysAgo => AWeekAgo,
-            AWeekAgo => AWeekAgo,
+            AWeekAgo => AMonthAgo,
+            AMonthAgo => AMonthAgo,
             _ => *self,
         }
     }
@@ -47,6 +49,7 @@ impl FetchTime {
             Today => Today,
             ThreeDaysAgo => Today,
             AWeekAgo => ThreeDaysAgo,
+            AMonthAgo => AWeekAgo,
             _ => *self,
         }
     }

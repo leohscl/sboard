@@ -16,7 +16,6 @@ use crossterm::terminal::*;
 use parser::Cli;
 use ratatui::prelude::*;
 use std::io::{self, Stdout};
-use tracing::info;
 use ui::ui;
 
 pub fn initialize_panic_handler() {

@@ -52,9 +52,13 @@ static FORMAT_STR: &str = "--format=JobID,JobName,Partition,Account,AllocCPUS,St
 // TRESUsageOutMinTask TRESUsageOutTot     UID                 User
 // UserCPU             WCKey               WCKeyID             WorkDir
 
-fn run_sacct(hours_before_now: u16) -> Result<String> {
+fn run_sacct(hours_before_now: u16, user: Option<String>) -> Result<String> {
     let fmt_time = format!("now-{}hours", hours_before_now);
-    let sacct_args = vec![FORMAT_STR, "-P", "-S", &fmt_time];
+    let mut sacct_args = vec![FORMAT_STR, "-P", "-S", &fmt_time];
+    let username = user.unwrap_or("".to_owned());
+    if !username.is_empty() {
+        sacct_args.extend(vec!["-u", &username]);
+    }
     run_command(None, "sacct", &sacct_args)
 }
 
@@ -76,13 +80,15 @@ fn update_max_rss(job_fields: &mut JobFields, all_job_fields: &[JobFields]) {
 }
 
 pub fn fetch_jobs(app: &App, job_info: JobQueryInfo) -> Result<Vec<JobFields>> {
+    let day_hours = 24;
     let hours_before_now = match app.fetch_time {
-        FetchTime::Today => 24,
-        FetchTime::ThreeDaysAgo => 24 * 3,
-        FetchTime::AWeekAgo => 24 * 7,
+        FetchTime::Today => day_hours,
+        FetchTime::ThreeDaysAgo => day_hours * 3,
+        FetchTime::AWeekAgo => day_hours * 7,
+        FetchTime::AMonthAgo => day_hours * 30,
         FetchTime::SpecificWindow { .. } => todo!(),
     };
-    let sacct_res = run_sacct(hours_before_now)?;
+    let sacct_res = run_sacct(hours_before_now, app.cli.user.clone())?;
     let all_job_fields = JobFields::from_sacct_str(&sacct_res)?;
     // remove fields with empty partition
     let mut job_fields_with_partition = all_job_fields.clone();
