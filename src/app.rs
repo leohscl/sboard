@@ -132,11 +132,11 @@ impl<'a> App<'a> {
                 KeyCode::Char(c) => self.send_char(c),
                 KeyCode::Enter => self.send_enter(),
                 KeyCode::Down => {
-                    self.increase_highlighted()?;
+                    self.down()?;
                     Ok(false)
                 }
                 KeyCode::Up => {
-                    self.decrease_highlighted()?;
+                    self.up()?;
                     Ok(false)
                 }
                 _ => Ok(false),
@@ -195,6 +195,26 @@ impl<'a> App<'a> {
                 .rem_euclid(num_results as i32 - num_skip_line)
                 + num_skip_line;
             self.highlighted = Some(new_value as usize);
+        }
+    }
+
+    fn up(&mut self) -> Result<()> {
+        match self.display_state {
+            DisplayState::Editor(ref mut editor) => {
+                editor.send_char('k');
+                Ok(())
+            },
+            _ => self.increase_highlighted()
+        }
+    }
+
+    fn down(&mut self) -> Result<()> {
+        match self.display_state {
+            DisplayState::Editor(ref mut editor) => {
+                editor.send_char('j');
+                Ok(())
+            }
+            _ => self.decrease_highlighted()
         }
     }
 
